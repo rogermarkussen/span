@@ -1,0 +1,16 @@
+# Data files
+data/
+
+# Node.js (for future implementation)
+node_modules/
+dist/
+.env
+.env.local
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# OS files
+.DS_Store
+Thumbs.db
