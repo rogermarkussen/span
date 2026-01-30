@@ -36,6 +36,7 @@ COUNT <hva vi teller>
 [SHOW <hva som vises>]
 [SORT <sortering>]
 [TOP <antall rader>]
+[FOR <år> | FOR (<år>, <år>, ...)]
 ```
 
 Klammeparentes `[ ]` betyr at delen er valgfri.
@@ -60,6 +61,7 @@ Klammeparentes `[ ]` betyr at delen er valgfri.
 | `SHOW` | Visningsformat | `both` | Hva skal vises? |
 | `SORT` | Sortering | `percent DESC` | Hvordan sortere resultatene? |
 | `TOP` | Begrensning | Ingen grense | Maks antall rader å returnere? |
+| `FOR` | Årsfilter | API-standard | Hvilket/hvilke år skal spørres? |
 
 ---
 
@@ -240,6 +242,29 @@ Vis kun de første N radene:
 TOP 10    -- Vis kun 10 rader
 TOP 5     -- Vis kun 5 rader
 ```
+
+---
+
+## Årsfilter (FOR)
+
+Spesifiser hvilket år eller hvilke år som skal brukes:
+
+```
+FOR 2024                -- Enkelt år
+FOR (2023, 2024)        -- Flere år
+FOR (2022, 2023, 2024)  -- Tre år
+```
+
+Når du bruker flere år, får resultatet en ekstra `aar`-kolonne.
+
+**Eksempler:**
+```
+HAS fiber COUNT homes FOR 2024              -- Data fra 2024
+HAS fiber COUNT homes BY county FOR 2024    -- Per fylke i 2024
+HAS fiber COUNT homes FOR (2023, 2024)      -- Sammenlign 2023 og 2024
+```
+
+> **Tips:** Når `FOR` utelates, brukes årstallet fra API-innstillingene.
 
 ---
 
@@ -485,13 +510,16 @@ SORT <felt> <retning>        -- Valgfri: Sortering
   count|percent|group ASC|DESC
 
 TOP <n>                      -- Valgfri: Maks rader
+
+FOR <år>                     -- Valgfri: Årsfilter
+  2024 | (2023, 2024)        -- Enkelt år eller liste
 ```
 
 ---
 
 ## Oppsummering
 
-Med Span kan du svare på nesten alle spørsmål om dekningsdata med bare **7 nøkkelord**:
+Med Span kan du svare på nesten alle spørsmål om dekningsdata med bare **8 nøkkelord**:
 
 1. **HAS** - Hvilken dekning?
 2. **IN** - Hvilken befolkning?
@@ -500,5 +528,6 @@ Med Span kan du svare på nesten alle spørsmål om dekningsdata med bare **7 n�
 5. **SHOW** - Hva vises?
 6. **SORT** - Hvordan sorteres?
 7. **TOP** - Hvor mange rader?
+8. **FOR** - Hvilket/hvilke år?
 
 Språket er kraftig nok til komplekse analyser, men enkelt nok til å lære på noen minutter.

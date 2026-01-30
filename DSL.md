@@ -28,6 +28,7 @@ COUNT <metric>
 [SHOW <output>]
 [SORT <field> ASC|DESC]
 [TOP <n>]
+[FOR <year> | FOR (<year>, <year>, ...)]
 ```
 
 ### Minimal Example
@@ -71,6 +72,7 @@ TOP 10
 | `SHOW` | Output format | `both` | What to display? |
 | `SORT` | Ordering | `percent DESC` | How to order results? |
 | `TOP` | Limit | No limit | Maximum rows to return? |
+| `FOR` | Year filter | API default | Which year(s) to query? |
 
 ---
 
@@ -385,6 +387,32 @@ SORT count DESC
 
 ---
 
+### Example 11: Year-Specific Query
+*"Fiber coverage in 2024"*
+
+```
+HAS fiber
+COUNT homes
+BY county
+FOR 2024
+```
+
+---
+
+### Example 12: Multi-Year Comparison
+*"Fiber coverage across 2023 and 2024"*
+
+```
+HAS fiber
+COUNT homes
+BY county
+FOR (2023, 2024)
+```
+
+Results include a `aar` column for year when multiple years are specified.
+
+---
+
 ## Grammar Specification
 
 ### EBNF
@@ -393,7 +421,7 @@ SORT count DESC
 queries     = query { "---" query }
 
 query       = has_clause [in_clause] count_clause [by_clause]
-              [show_clause] [sort_clause] [top_clause]
+              [show_clause] [sort_clause] [top_clause] [for_clause]
 
 has_clause  = "HAS" [quantifier] coverage_condition { ("AND" | "OR") coverage_condition }
 quantifier  = "ANY" | "ALL" | "NONE"
@@ -428,6 +456,8 @@ sort_field  = "count" | "percent" | "group"
 sort_dir    = "ASC" | "DESC"
 
 top_clause  = "TOP" number
+
+for_clause  = "FOR" ( number | "(" number { "," number } ")" )
 ```
 
 ---
