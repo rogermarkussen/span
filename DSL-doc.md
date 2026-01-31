@@ -29,7 +29,7 @@ Dette betyr: *«Tell hvor mange husstander som har fiberdekning»*
 Alle Span-spørringer følger dette mønsteret:
 
 ```
-HAS <hva slags dekning>
+[HAS <hva slags dekning>]
 [IN <hvilken befolkning>]
 COUNT <hva vi teller>
 [BY <hvordan gruppere>]
@@ -41,16 +41,26 @@ COUNT <hva vi teller>
 
 Klammeparentes `[ ]` betyr at delen er valgfri.
 
+### Spørringer uten HAS
+
+Når `HAS` utelates, telles alle adresser eller abonnementer uten noe dekningsfilter:
+
+```
+COUNT hus BY fylke FOR 2024      -- Alle husstander per fylke
+COUNT ab BY fylke FOR 2024       -- Alle abonnementer per fylke
+IN tett COUNT hus FOR 2024       -- Alle husstander i tettbygde strøk
+```
+
 ---
 
 ## Nøkkelord
 
-### Obligatoriske nøkkelord
+### Nøkkelord
 
-| Nøkkelord | Formål | Beskrivelse |
-|-----------|--------|-------------|
-| `HAS` | Dekningsfilter | Hvilke dekningskriterier må være oppfylt? |
-| `COUNT` | Metrikk | Hva skal vi telle? |
+| Nøkkelord | Formål | Obligatorisk | Beskrivelse |
+|-----------|--------|--------------|-------------|
+| `HAS` | Dekningsfilter | Nei | Hvilke dekningskriterier må være oppfylt? (Utelat for «alle») |
+| `COUNT` | Metrikk | Ja | Hva skal vi telle? |
 
 ### Valgfrie nøkkelord
 
@@ -574,7 +584,7 @@ Error: Missing required COUNT clause
 ## Hurtigreferanse
 
 ```
-HAS <dekningsbetingelse>     -- Obligatorisk: Hva slags dekning?
+HAS <dekningsbetingelse>     -- Valgfri: Hva slags dekning? (utelat for «alle»)
   fiber|kabel|dsl|5g|4g|ftb  -- Teknologiflagg
   nedhast >= 100             -- Hastighetssammenligning
   tilb = Telenor             -- Leverandørfilter

@@ -38,7 +38,12 @@ export class Parser {
   }
 
   parse(): SpanQuery {
-    const has = this.parseHasClause();
+    // HAS is now optional
+    let has: HasClause | null = null;
+    if (this.check('KEYWORD', 'HAS')) {
+      has = this.parseHasClause();
+    }
+
     const inClause = this.parseInClause();
     const count = this.parseCountClause();
     const by = this.parseByClause();

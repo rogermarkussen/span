@@ -64,7 +64,7 @@ export type ForClause =
   | { type: 'comparison'; op: ComparisonOp; value: number };
 
 export interface SpanQuery {
-  has: HasClause;
+  has: HasClause | null;
   in: InClause | null;
   count: Metric;
   by: Grouping;

@@ -383,6 +383,71 @@ describe('SQL Generator', () => {
     });
   });
 
+  describe('queries without HAS clause', () => {
+    it('generates SQL for COUNT hus without HAS', () => {
+      const sql = compile('COUNT hus FOR 2024', {});
+
+      expect(sql).toContain("'data/span_adr.parquet'");
+      expect(sql).toContain('SUM(hus)');
+      expect(sql).toContain('aar = 2024');
+      expect(sql).not.toContain('span_dekning.parquet');
+      expect(sql).not.toContain('tek =');
+    });
+
+    it('generates SQL for COUNT hus BY fylke without HAS', () => {
+      const sql = compile('COUNT hus BY fylke FOR 2024', {});
+
+      expect(sql).toContain('fylke AS gruppe');
+      expect(sql).toContain('SUM(hus) AS total');
+      expect(sql).toContain('UNION ALL');
+      expect(sql).toContain("'Norge' AS gruppe");
+      expect(sql).not.toContain('coverage AS');
+    });
+
+    it('generates SQL for COUNT ab without HAS', () => {
+      const sql = compile('COUNT ab FOR 2024', {});
+
+      expect(sql).toContain("'data/span_ab.parquet'");
+      expect(sql).toContain('COUNT(*)');
+      expect(sql).toContain('aar = 2024');
+      expect(sql).not.toContain('tek =');
+    });
+
+    it('generates SQL for COUNT ab BY fylke without HAS', () => {
+      const sql = compile('COUNT ab BY fylke FOR 2024', {});
+
+      expect(sql).toContain('fylke_mapping');
+      expect(sql).toContain('span_ab.parquet');
+      expect(sql).toContain('COALESCE(adr.fylke, m.fylke24, ab.fylke) AS gruppe');
+      expect(sql).not.toContain("tek = 'fiber'");
+    });
+
+    it('generates pivot SQL for COUNT hus BY fylke without HAS (multi-year)', () => {
+      const sql = compile('COUNT hus BY fylke FOR (2023, 2024)', {});
+
+      expect(sql).toContain('AS "2023"');
+      expect(sql).toContain('AS "2024"');
+      expect(sql).toContain('SUM(hus) AS total');
+      expect(sql).not.toContain('coverage AS');
+    });
+
+    it('generates SQL for COUNT hus IN tett without HAS', () => {
+      const sql = compile('IN tett COUNT hus FOR 2024', {});
+
+      expect(sql).toContain('ertett = true');
+      expect(sql).toContain('SUM(hus)');
+      expect(sql).not.toContain('tek =');
+    });
+
+    it('generates SQL for COUNT ab IN private without HAS', () => {
+      const sql = compile('IN private COUNT ab FOR 2024', {});
+
+      expect(sql).toContain('privat = true');
+      expect(sql).toContain('COUNT(*)');
+      expect(sql).not.toContain('tek =');
+    });
+  });
+
   describe('COUNT ab', () => {
     it('generates SQL for basic subscription count', () => {
       const sql = compile('HAS fiber COUNT ab FOR 2024', {});

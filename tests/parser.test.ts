@@ -248,6 +248,49 @@ describe('Parser', () => {
     });
   });
 
+  describe('optional HAS clause', () => {
+    it('parses query without HAS clause', () => {
+      const ast = parseQuery('COUNT hus FOR 2024');
+
+      expect(ast.has).toBeNull();
+      expect(ast.count).toBe('hus');
+      expect(ast.by).toBe('total'); // default
+    });
+
+    it('parses COUNT ab without HAS', () => {
+      const ast = parseQuery('COUNT ab BY fylke FOR 2024');
+
+      expect(ast.has).toBeNull();
+      expect(ast.count).toBe('ab');
+      expect(ast.by).toBe('fylke');
+    });
+
+    it('parses query without HAS but with IN clause', () => {
+      const ast = parseQuery('IN tett COUNT hus FOR 2024');
+
+      expect(ast.has).toBeNull();
+      expect(ast.in?.filters).toHaveLength(1);
+      expect(ast.in?.filters[0]).toEqual({ type: 'population', flag: 'tett' });
+      expect(ast.count).toBe('hus');
+    });
+
+    it('parses COUNT hus BY fylke without HAS', () => {
+      const ast = parseQuery('COUNT hus BY fylke FOR 2024');
+
+      expect(ast.has).toBeNull();
+      expect(ast.count).toBe('hus');
+      expect(ast.by).toBe('fylke');
+    });
+
+    it('parses COUNT fritid without HAS', () => {
+      const ast = parseQuery('COUNT fritid BY kom FOR 2024');
+
+      expect(ast.has).toBeNull();
+      expect(ast.count).toBe('fritid');
+      expect(ast.by).toBe('kom');
+    });
+  });
+
   describe('error handling', () => {
     it('throws on missing COUNT', () => {
       expect(() => parseQuery('HAS fiber')).toThrow();

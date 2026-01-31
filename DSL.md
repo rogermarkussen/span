@@ -21,7 +21,7 @@
 ### Basic Structure
 
 ```
-HAS <coverage-conditions>
+[HAS <coverage-conditions>]
 [IN <population-filters>]
 COUNT <metric>
 [BY <grouping>]
@@ -38,6 +38,20 @@ HAS fiber
 COUNT homes
 ```
 *"Count homes that have fiber coverage"*
+
+### Queries Without HAS
+
+When `HAS` is omitted, the query counts all addresses without any coverage filter:
+
+```
+COUNT homes BY county FOR 2024
+```
+*"Count all homes by county for 2024"*
+
+```
+COUNT ab BY county FOR 2024
+```
+*"Count all subscriptions by county for 2024"*
 
 ### Full Example
 
@@ -56,12 +70,12 @@ TOP 10
 
 ## Keywords
 
-### Core Keywords (Required)
+### Core Keywords
 
-| Keyword | Purpose | Description |
-|---------|---------|-------------|
-| `HAS` | Coverage filter | What coverage criteria must be met? |
-| `COUNT` | Metric | What are we counting? |
+| Keyword | Purpose | Required | Description |
+|---------|---------|----------|-------------|
+| `HAS` | Coverage filter | No | What coverage criteria must be met? (Omit for "all") |
+| `COUNT` | Metric | Yes | What are we counting? |
 
 ### Optional Keywords
 
@@ -464,7 +478,7 @@ FOR 2024
 ```ebnf
 queries     = query { "---" query }
 
-query       = has_clause [in_clause] count_clause [by_clause]
+query       = [has_clause] [in_clause] count_clause [by_clause]
               [show_clause] [sort_clause] [top_clause] [for_clause]
 
 has_clause  = "HAS" [quantifier] coverage_condition { ("AND" | "OR") coverage_condition }

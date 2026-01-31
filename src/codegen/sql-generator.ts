@@ -160,13 +160,15 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
     conditions.push(`${isByFylke ? 'ab.' : ''}aar IN (${years.join(', ')})`);
   }
 
-  // HAS clause conditions (tech, speed, etc.)
-  const coverageCondition = buildCoverageCondition(query.has);
-  if (coverageCondition) {
-    if (isByFylke) {
-      conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
-    } else {
-      conditions.push(coverageCondition);
+  // HAS clause conditions (tech, speed, etc.) - only if HAS is specified
+  if (query.has) {
+    const coverageCondition = buildCoverageCondition(query.has);
+    if (coverageCondition) {
+      if (isByFylke) {
+        conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
+      } else {
+        conditions.push(coverageCondition);
+      }
     }
   }
 
@@ -264,11 +266,13 @@ function generateSubscriptionsPivotSql(query: SpanQuery, years: number[], dataPa
   // Year filter for all years
   conditions.push(`ab.aar IN (${years.join(', ')})`);
 
-  // HAS clause conditions (tech, speed, etc.)
-  const coverageCondition = buildCoverageCondition(query.has);
-  if (coverageCondition) {
-    // Add ab. prefix to coverage condition fields
-    conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
+  // HAS clause conditions (tech, speed, etc.) - only if HAS is specified
+  if (query.has) {
+    const coverageCondition = buildCoverageCondition(query.has);
+    if (coverageCondition) {
+      // Add ab. prefix to coverage condition fields
+      conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
+    }
   }
 
   // IN clause conditions (private, business, county, etc.)
@@ -392,7 +396,6 @@ function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string
 
   const metric = METRIC_MAPPINGS[query.count];
   const groupExpr = getGroupingExpr(query.by);
-  const groupExprAliased = getGroupingExpr(query.by, 'a');
 
   // Build year filter
   const yearFilter = years.length === 1
@@ -402,6 +405,26 @@ function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string
   // Build population WHERE clause (without private/business which are subscription-only)
   const populationWhere = buildPopulationWhere(query.in);
 
+  // Build ORDER BY
+  const orderBy = buildOrderBy(query.sort);
+
+  // Build LIMIT
+  const limit = query.top ? `LIMIT ${query.top}` : '';
+
+  // Include year column for multi-year queries
+  const yearColumn = years.length > 1 ? ', aar' : '';
+  const groupByYear = years.length > 1 ? ', aar' : '';
+
+  // Check if we need national total (BY fylke)
+  const needsNationalTotal = query.by === 'fylke';
+
+  // If no HAS clause, generate simple aggregation without coverage filter
+  if (!query.has) {
+    return generateAllAddressesSql(query, years, dataPath, adrTable, metric, groupExpr, yearFilter, populationWhere, yearColumn, groupByYear, orderBy, limit, needsNationalTotal);
+  }
+
+  const groupExprAliased = getGroupingExpr(query.by, 'a');
+
   // Build coverage subquery - use correlated subquery for multi-year to match correct year
   const coverageSubquery = years.length > 1
     ? buildCoverageSubqueryForPivot(query.has, dekningTable)
@@ -410,23 +433,11 @@ function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string
   // Build SELECT columns based on SHOW
   const selectCols = buildSelectColumns(query.show);
 
-  // Build ORDER BY
-  const orderBy = buildOrderBy(query.sort);
-
-  // Build LIMIT
-  const limit = query.top ? `LIMIT ${query.top}` : '';
-
   // Metric column with table alias for coverage CTE
   const metricAliased = metric === '1' ? '1' : `a.${metric}`;
 
-  // Include year column for multi-year queries
-  const yearColumn = years.length > 1 ? ', aar' : '';
-  const groupByYear = years.length > 1 ? ', aar' : '';
   const yearJoin = years.length > 1 ? ' AND p.aar = c.aar' : '';
   const pYearColumn = years.length > 1 ? ', p.aar' : '';
-
-  // Check if we need national total (BY fylke)
-  const needsNationalTotal = query.by === 'fylke';
 
   // Generate the base SQL with CTEs
   let sql = `
@@ -477,19 +488,86 @@ ${limit}`.trim();
   return sql.trim();
 }
 
+// Generate SQL for queries without HAS clause (count all addresses)
+function generateAllAddressesSql(
+  query: SpanQuery,
+  years: number[],
+  dataPath: string,
+  adrTable: string,
+  metric: string,
+  groupExpr: string,
+  yearFilter: string,
+  populationWhere: string,
+  yearColumn: string,
+  groupByYear: string,
+  orderBy: string,
+  limit: string,
+  needsNationalTotal: boolean
+): string {
+  // For queries without HAS, covered = total (all addresses are "covered")
+  const pYearColumn = years.length > 1 ? ', aar' : '';
+
+  let sql: string;
+
+  if (needsNationalTotal) {
+    const outerOrderBy = orderBy.replace('p.gruppe', 'gruppe').replace('ORDER BY ', '');
+    sql = `
+WITH by_group AS (
+  SELECT ${groupExpr} AS gruppe${yearColumn}, SUM(${metric}) AS total
+  FROM ${adrTable}
+  WHERE ${yearFilter}${populationWhere ? ` AND ${populationWhere}` : ''}
+  GROUP BY ${groupExpr}${groupByYear}
+),
+with_national AS (
+  SELECT * FROM by_group
+  UNION ALL
+  SELECT 'Norge' AS gruppe${pYearColumn}, SUM(total) AS total
+  FROM by_group${years.length > 1 ? ' GROUP BY aar' : ''}
+)
+SELECT gruppe${pYearColumn}, total FROM with_national
+ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, ${outerOrderBy}
+${limit}`.trim();
+  } else {
+    sql = `
+SELECT ${groupExpr} AS gruppe${yearColumn}, SUM(${metric}) AS total
+FROM ${adrTable}
+WHERE ${yearFilter}${populationWhere ? ` AND ${populationWhere}` : ''}
+GROUP BY ${groupExpr}${groupByYear}
+${orderBy.replace('p.gruppe', 'gruppe')}
+${limit}`.trim();
+  }
+
+  return sql;
+}
+
 function generatePivotSql(query: SpanQuery, years: number[], dataPath: string): string {
   const adrTable = `'${dataPath}/span_adr.parquet'`;
   const dekningTable = `'${dataPath}/span_dekning.parquet'`;
 
   const metric = METRIC_MAPPINGS[query.count];
   const groupExpr = getGroupingExpr(query.by);
-  const groupExprAliased = getGroupingExpr(query.by, 'a');
 
   // Build population WHERE clause
   const populationWhere = buildPopulationWhere(query.in);
 
   // Build year filter for all years
   const yearFilter = `aar IN (${years.join(', ')})`;
+
+  // Build ORDER BY (for pivot, only group makes sense)
+  const orderBy = buildPivotOrderBy(query.sort, query.by);
+
+  // Build LIMIT
+  const limit = query.top ? `LIMIT ${query.top}` : '';
+
+  // Check if we need national total (BY fylke)
+  const needsNationalTotal = query.by === 'fylke';
+
+  // If no HAS clause, generate simple pivot without coverage filter
+  if (!query.has) {
+    return generateAllAddressesPivotSql(query, years, dataPath, adrTable, metric, groupExpr, yearFilter, populationWhere, orderBy, limit, needsNationalTotal);
+  }
+
+  const groupExprAliased = getGroupingExpr(query.by, 'a');
 
   // Build coverage subquery with year correlation
   const coverageSubqueryBase = buildCoverageSubqueryForPivot(query.has, dekningTable);
@@ -502,15 +580,6 @@ function generatePivotSql(query: SpanQuery, years: number[], dataPath: string): 
     `ROUND(100.0 * SUM(CASE WHEN aar = ${year} THEN covered ELSE 0 END) /
      NULLIF(SUM(CASE WHEN aar = ${year} THEN total ELSE 0 END), 0), 1) AS "${year}"`
   ).join(',\n    ');
-
-  // Build ORDER BY (for pivot, only group makes sense)
-  const orderBy = buildPivotOrderBy(query.sort, query.by);
-
-  // Build LIMIT
-  const limit = query.top ? `LIMIT ${query.top}` : '';
-
-  // Check if we need national total (BY fylke)
-  const needsNationalTotal = query.by === 'fylke';
 
   let sql = `
 WITH population AS (
@@ -562,6 +631,69 @@ ${limit}`.trim();
   return sql.trim();
 }
 
+// Generate pivot SQL for queries without HAS clause (count all addresses)
+function generateAllAddressesPivotSql(
+  query: SpanQuery,
+  years: number[],
+  dataPath: string,
+  adrTable: string,
+  metric: string,
+  groupExpr: string,
+  yearFilter: string,
+  populationWhere: string,
+  orderBy: string,
+  limit: string,
+  needsNationalTotal: boolean
+): string {
+  // For queries without HAS, we just show totals per year
+  const yearColumns = years.map(year =>
+    `SUM(CASE WHEN aar = ${year} THEN total ELSE 0 END) AS "${year}"`
+  ).join(',\n    ');
+
+  let sql: string;
+
+  if (needsNationalTotal) {
+    sql = `
+WITH by_group AS (
+  SELECT ${groupExpr} AS gruppe, aar, SUM(${metric}) AS total
+  FROM ${adrTable}
+  WHERE ${yearFilter}${populationWhere ? ` AND ${populationWhere}` : ''}
+  GROUP BY ${groupExpr}, aar
+),
+with_national AS (
+  SELECT * FROM by_group
+  UNION ALL
+  SELECT 'Norge' AS gruppe, aar, SUM(total) AS total
+  FROM by_group
+  GROUP BY aar
+)
+SELECT
+    gruppe,
+    ${yearColumns}
+FROM with_national
+GROUP BY gruppe
+ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, gruppe ASC
+${limit}`.trim();
+  } else {
+    sql = `
+WITH by_group AS (
+  SELECT ${groupExpr} AS gruppe, aar, SUM(${metric}) AS total
+  FROM ${adrTable}
+  WHERE ${yearFilter}${populationWhere ? ` AND ${populationWhere}` : ''}
+  GROUP BY ${groupExpr}, aar
+)
+SELECT
+    gruppe,
+    ${yearColumns}
+FROM by_group
+GROUP BY gruppe
+${orderBy}
+${limit}`.trim();
+  }
+
+  return sql;
+}
+
 function buildPivotOrderBy(sort: { field: string; dir: string }, grouping: Grouping): string {
   // For pivot queries, we can only sort by group since years are columns
   return `ORDER BY gruppe ${sort.dir}`;
@@ -589,7 +721,11 @@ function buildFinalSelectColumns(show: 'count' | 'andel' | 'begge'): string {
   }
 }
 
-function buildCoverageCondition(has: HasClause): string {
+function buildCoverageCondition(has: HasClause | null): string | null {
+  if (!has) {
+    return null;
+  }
+
   if (has.quantified) {
     const { quantifier, expressions } = has.quantified;
 
@@ -651,7 +787,11 @@ function buildPopulationWhere(inClause: InClause | null): string {
   return conditions.join(' AND ');
 }
 
-function buildCoverageSubquery(has: HasClause, dekningTable: string, yearFilter: string): string {
+function buildCoverageSubquery(has: HasClause | null, dekningTable: string, yearFilter: string): string | null {
+  if (!has) {
+    return null;
+  }
+
   if (has.quantified) {
     const { quantifier, expressions } = has.quantified;
 
@@ -688,7 +828,11 @@ function buildCoverageSubquery(has: HasClause, dekningTable: string, yearFilter:
 }
 
 // Correlated subquery for multi-year: uses d.aar = a.aar to match year per row
-function buildCoverageSubqueryForPivot(has: HasClause, dekningTable: string): string {
+function buildCoverageSubqueryForPivot(has: HasClause | null, dekningTable: string): string | null {
+  if (!has) {
+    return null;
+  }
+
   const yearCorrelation = 'd.aar = a.aar';
 
   if (has.quantified) {
