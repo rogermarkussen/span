@@ -90,6 +90,10 @@ NONE(nedhast >= 30)       -- Ingen tilbud med >= 30 Mbps
 
 `total` | `fylke` | `kom` | `postnr` | `tett` | `tilb` | `tek`
 
+## Datakilde
+
+`fbb` (fast bredbånd, standard) | `mob` (mobil) | `begge`
+
 ## Flere eksempler
 
 ### Nasjonal fiberdekning

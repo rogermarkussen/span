@@ -69,7 +69,7 @@ IN tett COUNT hus FOR 2024       -- Alle husstander i tettbygde strøk
 | `IN` | Populasjonsfilter | Alle adresser | Hvilken populasjon måles mot? |
 | `BY` | Gruppering | Nasjonalt totalt | Hvordan bryte ned resultatene? |
 | `SHOW` | Visningsformat | `begge` | Hva skal vises? |
-| `SORT` | Sortering | `andel DESC` | Hvordan sortere resultatene? |
+| `SORT` | Sortering | `group ASC` | Hvordan sortere resultatene? |
 | `TOP` | Begrensning | Ingen grense | Maks antall rader å returnere? |
 | `FOR` | Årsfilter | API-standard | Hvilket/hvilke år skal spørres? |
 
@@ -117,7 +117,6 @@ For mer presise spørringer kan du bruke felt med sammenligninger:
 | `<=` | Mindre eller lik | `nedhast <= 30` |
 | `>` | Større enn | `nedhast > 50` |
 | `<` | Mindre enn | `nedhast < 10` |
-| `IN` | I liste | `tilb IN (Telenor, Telia)` |
 
 **Eksempel:**
 ```
@@ -332,6 +331,22 @@ HAS 5g COUNT hus BY kom FOR (2023, 2024)  -- 5G-utvikling per kommune
 ```
 
 > **Tips:** Når `FOR` utelates, brukes årstallet fra API-innstillingene.
+
+---
+
+## Datakilde
+
+Span-spørringer kan rettes mot ulike datakilder. Datakilden bestemmer hvilket dekningsdatasett som brukes.
+
+| Kilde | Beskrivelse |
+|-------|-------------|
+| `fbb` | Fast bredbåndsdekning (standard) |
+| `mob` | Mobildekning |
+| `begge` | Både fast bredbånd og mobildekning |
+
+Når ingen datakilde er spesifisert, brukes `fbb` (fast bredbånd) som standard.
+
+**Merk:** Valg av datakilde håndteres for øyeblikket internt og kan bli eksponert i spørringssyntaksen i fremtidige versjoner.
 
 ---
 

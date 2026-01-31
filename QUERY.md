@@ -84,7 +84,7 @@ TOP 10
 | `IN` | Population filter | All addresses | Which population to measure against? |
 | `BY` | Grouping | National total | How to break down results? |
 | `SHOW` | Output format | `both` | What to display? |
-| `SORT` | Ordering | `percent DESC` | How to order results? |
+| `SORT` | Ordering | `group ASC` | How to order results? |
 | `TOP` | Limit | No limit | Maximum rows to return? |
 | `FOR` | Year filter | API default | Which year(s) to query? |
 
@@ -117,13 +117,12 @@ TOP 10
 | `<=` | Less or equal | `nedhast <= 30` |
 | `>` | Greater than | `nedhast > 50` |
 | `<` | Less than | `nedhast < 10` |
-| `IN` | In list | `tilb IN (Telenor, Telia)` |
 
 ### Logical Operators
 
 | Operator | Meaning | Example |
 |----------|---------|---------|
-| `AND` | Both conditions | `fiber AND speed >= 100` |
+| `AND` | Both conditions | `fiber AND nedhast >= 100` |
 | `OR` | Either condition | `fiber OR cable` |
 | `NOT` | Negation | `NOT dsl` |
 
@@ -241,19 +240,35 @@ These filters are **only** available with `COUNT ab`.
 
 ---
 
+## Data Source
+
+Span queries can target different data sources. The data source determines which coverage dataset is queried.
+
+| Source | Description |
+|--------|-------------|
+| `fbb` | Fixed broadband coverage (default) |
+| `mob` | Mobile coverage |
+| `begge` | Both fixed and mobile coverage |
+
+When no data source is specified, `fbb` (fixed broadband) is used as the default.
+
+**Note:** Data source selection is currently handled internally and may be exposed in the query syntax in future versions.
+
+---
+
 ## Multi-Query
 
 Multiple queries can be combined with the `---` separator:
 
 ```
-HAS speed >= 1000
-COUNT homes
+HAS nedhast >= 1000
+COUNT hus
 ---
-HAS speed >= 100 AND speed < 1000
-COUNT homes
+HAS nedhast >= 100 AND nedhast < 1000
+COUNT hus
 ---
-HAS speed < 100
-COUNT homes
+HAS nedhast < 100
+COUNT hus
 ```
 
 The API returns an array with results for each query.
@@ -492,7 +507,7 @@ population_flag = "tett" | "spredt" | "privat" | "bedrift"
 population_comparison = population_field operator value
 population_field = "fylke" | "kom" | "type" | "postnr"
 
-operator    = "=" | "!=" | ">=" | "<=" | ">" | "<" | "IN"
+operator    = "=" | "!=" | ">=" | "<=" | ">" | "<"
 value       = string | number | value_list
 value_list  = "(" value { "," value } ")"
 string      = word | "'" { any_char } "'"
@@ -513,7 +528,9 @@ sort_dir    = "ASC" | "DESC"
 
 top_clause  = "TOP" number
 
-for_clause  = "FOR" ( number | "(" number { "," number } ")" )
+for_clause  = "FOR" ( year_value | year_comparison )
+year_value  = number | "(" number { "," number } ")"
+year_comparison = "ar" operator number
 ```
 
 ---
@@ -532,7 +549,7 @@ const TOKEN_TYPES = {
   METRIC: /^(hus|adr|fritid|ab)$/i,
   GROUPING: /^(total|fylke|kom|postnr|tett|tilb|tek)$/i,
   OUTPUT: /^(count|andel|begge)$/i,
-  OPERATOR: /^(=|!=|>=|<=|>|<|IN)$/,
+  OPERATOR: /^(=|!=|>=|<=|>|<)$/,
   NUMBER: /^\d+$/,
   STRING: /^'[^']*'$|^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*$/
 };
@@ -563,7 +580,7 @@ class SpanParser {
       count: null,
       by: 'total',
       show: 'begge',
-      sort: { field: 'andel', dir: 'DESC' },
+      sort: { field: 'group', dir: 'ASC' },
       top: null
     };
 
