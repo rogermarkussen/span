@@ -7,7 +7,8 @@ import {
   InFilter,
   PopulationFlag,
   ForClause,
-  ComparisonOp
+  ComparisonOp,
+  DataSource
 } from '../parser/ast.js';
 import { CodeGenError } from '../errors/index.js';
 import {
@@ -16,8 +17,17 @@ import {
   GROUPING_MAPPINGS,
   POPULATION_MAPPINGS,
   FIELD_MAPPINGS,
+  DATA_SOURCE_FILTERS,
   convertSpeed,
-  isSpeedField
+  isSpeedField,
+  HISTORIKK_CUTOFF_YEAR,
+  HISTORIKK_TECHNOLOGIES,
+  HISTORIKK_SPEED_THRESHOLDS,
+  HISTORIKK_SUPPORTED_GROUPINGS,
+  HISTORIKK_GEO_MAPPINGS,
+  isHistorikkSpeedSupported,
+  isHistorikkTechSupported,
+  buildHistorikkSpeedIndicator
 } from './mappings.js';
 
 export interface SqlOptions {
@@ -25,8 +35,11 @@ export interface SqlOptions {
   dataPath?: string;
 }
 
-// Available years in the system
+// Available years for address-level data
 const AVAILABLE_YEARS = [2022, 2023, 2024];
+
+// All available years including historical
+const ALL_AVAILABLE_YEARS = [2010, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024];
 
 // CTE for mapping historical county names to 2024 county names
 // Uses data/2022/adr.parquet which has both fylke (historical) and fylke24 (2024 name)
@@ -46,6 +59,11 @@ function getFylkeMappingCte(dataPath: string): string {
 )`;
 }
 
+// Get data source filter condition (or null for no filter)
+function getDataSourceFilter(source: DataSource): string | null {
+  return DATA_SOURCE_FILTERS[source];
+}
+
 // Resolve years from ForClause
 function resolveYears(forClause: ForClause | null, options: SqlOptions): number[] {
   if (!forClause) {
@@ -56,9 +74,28 @@ function resolveYears(forClause: ForClause | null, options: SqlOptions): number[
     return forClause.years;
   }
 
-  // Comparison: filter AVAILABLE_YEARS
+  // Comparison: For operators like >=, <=, we need to decide which years to include
+  // We include historical years if the comparison could potentially match any of them
   const { op, value } = forClause;
-  return AVAILABLE_YEARS.filter(year => {
+
+  // Include historical years if the comparison could match any year before HISTORIKK_CUTOFF_YEAR
+  // Examples:
+  //   ar < 2024 -> could match 2010, 2012, ... 2023, so include all
+  //   ar >= 2015 -> could match 2015+, so include all (historical + modern)
+  //   ar = 2015 -> explicit historical year, include all
+  //   ar != 2023 -> could match historical years, include all
+  const couldMatchHistorical = (
+    (op === '=' && value < HISTORIKK_CUTOFF_YEAR) ||
+    (op === '<') ||
+    (op === '<=') ||
+    (op === '>=') ||
+    (op === '>') ||
+    (op === '!=')
+  );
+
+  const yearsToFilter = couldMatchHistorical ? ALL_AVAILABLE_YEARS : AVAILABLE_YEARS;
+
+  return yearsToFilter.filter(year => {
     switch (op) {
       case '>=': return year >= value;
       case '<=': return year <= value;
@@ -69,6 +106,147 @@ function resolveYears(forClause: ForClause | null, options: SqlOptions): number[
       default: return false;
     }
   });
+}
+
+// Check if query requires historical data (years before HISTORIKK_CUTOFF_YEAR)
+function hasHistoricalYears(years: number[]): boolean {
+  return years.some(year => year < HISTORIKK_CUTOFF_YEAR);
+}
+
+// Check if query can be answered using historikk.parquet
+interface HistorikkValidation {
+  canUse: boolean;
+  error?: string;
+}
+
+function validateHistorikkQuery(query: SpanQuery, years: number[]): HistorikkValidation {
+  // Check grouping - only total and tett are supported
+  if (!(HISTORIKK_SUPPORTED_GROUPINGS as readonly string[]).includes(query.by)) {
+    return {
+      canUse: false,
+      error: `Gruppering "${query.by}" er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}). ` +
+        `Støttede grupperinger: ${HISTORIKK_SUPPORTED_GROUPINGS.join(', ')}.`
+    };
+  }
+
+  // Check IN filters - no tilbyder or fylke filters allowed
+  if (query.in) {
+    for (const filter of query.in.filters) {
+      if (filter.type === 'field') {
+        if (filter.field === 'tilb') {
+          return {
+            canUse: false,
+            error: `Tilbyder-filter er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}).`
+          };
+        }
+        if (filter.field === 'fylke' || filter.field === 'kom') {
+          return {
+            canUse: false,
+            error: `Geografisk filter "${filter.field}" er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}). ` +
+              `Historisk data finnes kun på nasjonalt nivå og tett/spredt.`
+          };
+        }
+      }
+      if (filter.type === 'population' && (filter.flag === 'privat' || filter.flag === 'bedrift')) {
+        return {
+          canUse: false,
+          error: `Filter "${filter.flag}" er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}).`
+        };
+      }
+    }
+  }
+
+  // Check HAS clause conditions
+  if (query.has) {
+    const hasValidation = validateHistorikkHasClause(query.has);
+    if (!hasValidation.canUse) {
+      return hasValidation;
+    }
+  }
+
+  // Check SHOW - count is not available for historikk
+  if (query.show === 'count') {
+    return {
+      canUse: false,
+      error: `SHOW count er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}). ` +
+        `Historisk data har kun dekningsandeler (prosent), ikke antall. Bruk SHOW andel.`
+    };
+  }
+
+  return { canUse: true };
+}
+
+function validateHistorikkHasClause(has: HasClause): HistorikkValidation {
+  if (has.quantified) {
+    for (const expr of has.quantified.expressions) {
+      const validation = validateHistorikkExpression(expr);
+      if (!validation.canUse) return validation;
+    }
+  }
+  if (has.expression) {
+    return validateHistorikkExpression(has.expression);
+  }
+  return { canUse: true };
+}
+
+function validateHistorikkExpression(expr: Expression): HistorikkValidation {
+  switch (expr.type) {
+    case 'flag':
+      if (!isHistorikkTechSupported(expr.flag)) {
+        return {
+          canUse: false,
+          error: `Teknologi "${expr.flag}" er ikke tilgjengelig i historisk data. ` +
+            `Støttede teknologier: ${HISTORIKK_TECHNOLOGIES.join(', ')}.`
+        };
+      }
+      return { canUse: true };
+
+    case 'comparison':
+      if (expr.field === 'nedhast') {
+        const mbps = typeof expr.value === 'number' ? expr.value : parseInt(expr.value as string, 10);
+        if (!isHistorikkSpeedSupported(mbps)) {
+          return {
+            canUse: false,
+            error: `Hastighetsterskel ${mbps} Mbps er ikke tilgjengelig i historisk data. ` +
+              `Støttede terskler: ${HISTORIKK_SPEED_THRESHOLDS.join(', ')} Mbps.`
+          };
+        }
+        return { canUse: true };
+      }
+      if (expr.field === 'opphast') {
+        // opphast alene er ikke støttet, men det håndteres sammen med nedhast
+        return { canUse: true };
+      }
+      if (expr.field === 'tilb') {
+        return {
+          canUse: false,
+          error: `Tilbyder-filter er ikke tilgjengelig for historiske data (før ${HISTORIKK_CUTOFF_YEAR}).`
+        };
+      }
+      if (expr.field === 'tek') {
+        const tech = expr.value as string;
+        if (!isHistorikkTechSupported(tech)) {
+          return {
+            canUse: false,
+            error: `Teknologi "${tech}" er ikke tilgjengelig i historisk data. ` +
+              `Støttede teknologier: ${HISTORIKK_TECHNOLOGIES.join(', ')}.`
+          };
+        }
+        return { canUse: true };
+      }
+      return { canUse: true };
+
+    case 'binary':
+      const leftVal = validateHistorikkExpression(expr.left);
+      if (!leftVal.canUse) return leftVal;
+      return validateHistorikkExpression(expr.right);
+
+    case 'not':
+      return validateHistorikkExpression(expr.expr);
+
+    default:
+      return { canUse: true };
+  }
 }
 
 function getGroupingExpr(grouping: Grouping, tableAlias?: string): string {
@@ -120,11 +298,25 @@ export function generateSql(query: SpanQuery, options: SqlOptions): string {
   // Validate filters
   validateFilters(query);
 
-  // Resolve years from FOR clause or options
+  // Resolve years from FOR clause
   const years = resolveYears(query.for, options);
 
   if (years.length === 0) {
     throw new CodeGenError('No year specified. Use FOR clause or provide year in options.');
+  }
+
+  // Check if any years require historical data
+  if (hasHistoricalYears(years)) {
+    // Validate that query can be answered with historical data
+    const validation = validateHistorikkQuery(query, years);
+    if (!validation.canUse) {
+      throw new CodeGenError(validation.error!);
+    }
+
+    // Use historikk.parquet for ALL years when query includes historical years
+    // This ensures consistent methodology and values across all years
+    // historikk.parquet contains data for 2022-2024 as well
+    return generateHistorikkSql(query, years, dataPath);
   }
 
   // Route to appropriate generator based on metric
@@ -138,6 +330,190 @@ export function generateSql(query: SpanQuery, options: SqlOptions): string {
   }
 
   return generateCoverageSql(query, years, dataPath);
+}
+
+// Generate SQL for historical data (years < 2022)
+function generateHistorikkSql(query: SpanQuery, years: number[], dataPath: string): string {
+  const historikkTable = `'${dataPath}/historikk.parquet'`;
+
+  // Build WHERE conditions
+  const conditions: string[] = [];
+
+  // Year filter
+  if (years.length === 1) {
+    conditions.push(`aar = ${years[0]}`);
+  } else {
+    conditions.push(`aar IN (${years.join(', ')})`);
+  }
+
+  // Geo filter from BY clause and IN filters
+  const geoFilter = buildHistorikkGeoFilter(query);
+  if (geoFilter) {
+    conditions.push(geoFilter);
+  }
+
+  // Indikator filter from HAS clause
+  const indikatorFilter = buildHistorikkIndikatorFilter(query.has);
+  if (indikatorFilter) {
+    conditions.push(indikatorFilter);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Build SELECT and grouping
+  const isMultiYear = years.length > 1;
+  const isByTett = query.by === 'tett';
+
+  let sql: string;
+
+  if (isMultiYear && isByTett) {
+    // Pivot by year and geo
+    const yearColumns = years.map(year =>
+      `ROUND(MAX(CASE WHEN aar = ${year} THEN dekning END) * 100, 1) AS "${year}"`
+    ).join(',\n    ');
+
+    sql = `
+SELECT
+    CASE WHEN geo = 'tettbygd' THEN 'Tettsted' WHEN geo = 'spredtbygd' THEN 'Spredt' ELSE 'Norge' END AS gruppe,
+    ${yearColumns}
+FROM ${historikkTable}
+${whereClause}
+GROUP BY geo
+ORDER BY CASE WHEN geo = 'totalt' THEN 1 WHEN geo = 'tettbygd' THEN 2 ELSE 3 END`.trim();
+  } else if (isMultiYear) {
+    // Multi-year, BY total - pivot by year
+    const yearColumns = years.map(year =>
+      `ROUND(MAX(CASE WHEN aar = ${year} THEN dekning END) * 100, 1) AS "${year}"`
+    ).join(',\n    ');
+
+    sql = `
+SELECT
+    'Norge' AS gruppe,
+    ${yearColumns}
+FROM ${historikkTable}
+${whereClause}`.trim();
+  } else if (isByTett) {
+    // Single year, BY tett - group by geo
+    sql = `
+SELECT
+    CASE WHEN geo = 'tettbygd' THEN 'Tettsted' WHEN geo = 'spredtbygd' THEN 'Spredt' ELSE 'Norge' END AS gruppe,
+    ROUND(dekning * 100, 1) AS andel
+FROM ${historikkTable}
+${whereClause}
+ORDER BY CASE WHEN geo = 'totalt' THEN 1 WHEN geo = 'tettbygd' THEN 2 ELSE 3 END`.trim();
+  } else {
+    // Single year, BY total
+    sql = `
+SELECT
+    'Norge' AS gruppe,
+    ROUND(dekning * 100, 1) AS andel
+FROM ${historikkTable}
+${whereClause}`.trim();
+  }
+
+  // Add TOP limit if specified
+  if (query.top) {
+    sql += `\nLIMIT ${query.top}`;
+  }
+
+  return sql;
+}
+
+function buildHistorikkGeoFilter(query: SpanQuery): string | null {
+  // Check IN clause for tett/spredt filters
+  if (query.in) {
+    for (const filter of query.in.filters) {
+      if (filter.type === 'population') {
+        if (filter.flag === 'tett') {
+          return "geo = 'tettbygd'";
+        }
+        if (filter.flag === 'spredt') {
+          return "geo = 'spredtbygd'";
+        }
+      }
+    }
+  }
+
+  // If BY tett, include all geo values
+  if (query.by === 'tett') {
+    return "geo IN ('totalt', 'tettbygd', 'spredtbygd')";
+  }
+
+  // BY total - use totalt
+  return "geo = 'totalt'";
+}
+
+function buildHistorikkIndikatorFilter(has: HasClause | null): string | null {
+  if (!has) {
+    return null;
+  }
+
+  if (has.quantified) {
+    const { quantifier, expressions } = has.quantified;
+
+    if (quantifier === 'ANY') {
+      const filters = expressions.map(expr => buildHistorikkExpressionFilter(expr)).filter(Boolean);
+      return filters.length > 0 ? `(${filters.join(' OR ')})` : null;
+    }
+
+    if (quantifier === 'ALL') {
+      // ALL with multiple expressions is tricky for historikk
+      // For now, we'll just AND them which works if they're compatible
+      const filters = expressions.map(expr => buildHistorikkExpressionFilter(expr)).filter(Boolean);
+      return filters.length > 0 ? `(${filters.join(' AND ')})` : null;
+    }
+
+    if (quantifier === 'NONE') {
+      const filters = expressions.map(expr => buildHistorikkExpressionFilter(expr)).filter(Boolean);
+      return filters.length > 0 ? `NOT (${filters.join(' OR ')})` : null;
+    }
+  }
+
+  if (has.expression) {
+    return buildHistorikkExpressionFilter(has.expression);
+  }
+
+  return null;
+}
+
+function buildHistorikkExpressionFilter(expr: Expression): string | null {
+  switch (expr.type) {
+    case 'flag': {
+      const filter = `(type = 'tek' AND indikator = '${expr.flag}')`;
+      return expr.negated ? `NOT ${filter}` : filter;
+    }
+
+    case 'comparison': {
+      if (expr.field === 'nedhast') {
+        const mbps = typeof expr.value === 'number' ? expr.value : parseInt(expr.value as string, 10);
+        const indicator = buildHistorikkSpeedIndicator(mbps);
+        const filter = `(type = 'hast' AND indikator = '${indicator}')`;
+        return expr.negated ? `NOT ${filter}` : filter;
+      }
+      if (expr.field === 'tek') {
+        const filter = `(type = 'tek' AND indikator = '${expr.value}')`;
+        return expr.negated ? `NOT ${filter}` : filter;
+      }
+      return null;
+    }
+
+    case 'binary': {
+      const left = buildHistorikkExpressionFilter(expr.left);
+      const right = buildHistorikkExpressionFilter(expr.right);
+      if (left && right) {
+        return `(${left} ${expr.op} ${right})`;
+      }
+      return left || right;
+    }
+
+    case 'not': {
+      const inner = buildHistorikkExpressionFilter(expr.expr);
+      return inner ? `NOT (${inner})` : null;
+    }
+
+    default:
+      return null;
+  }
 }
 
 function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: string): string {
@@ -393,6 +769,7 @@ function buildSubscriptionsOrderBy(sort: { field: string; dir: string }): string
 function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string): string {
   const adrTable = `'${dataPath}/span_adr.parquet'`;
   const dekningTable = `'${dataPath}/span_dekning.parquet'`;
+  const sourceFilter = getDataSourceFilter(query.source);
 
   const metric = METRIC_MAPPINGS[query.count];
   const groupExpr = getGroupingExpr(query.by);
@@ -427,8 +804,8 @@ function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string
 
   // Build coverage subquery - use correlated subquery for multi-year to match correct year
   const coverageSubquery = years.length > 1
-    ? buildCoverageSubqueryForPivot(query.has, dekningTable)
-    : buildCoverageSubquery(query.has, dekningTable, yearFilter);
+    ? buildCoverageSubqueryForPivot(query.has, dekningTable, sourceFilter)
+    : buildCoverageSubquery(query.has, dekningTable, yearFilter, sourceFilter);
 
   // Build SELECT columns based on SHOW
   const selectCols = buildSelectColumns(query.show);
@@ -543,6 +920,7 @@ ${limit}`.trim();
 function generatePivotSql(query: SpanQuery, years: number[], dataPath: string): string {
   const adrTable = `'${dataPath}/span_adr.parquet'`;
   const dekningTable = `'${dataPath}/span_dekning.parquet'`;
+  const sourceFilter = getDataSourceFilter(query.source);
 
   const metric = METRIC_MAPPINGS[query.count];
   const groupExpr = getGroupingExpr(query.by);
@@ -570,7 +948,7 @@ function generatePivotSql(query: SpanQuery, years: number[], dataPath: string): 
   const groupExprAliased = getGroupingExpr(query.by, 'a');
 
   // Build coverage subquery with year correlation
-  const coverageSubqueryBase = buildCoverageSubqueryForPivot(query.has, dekningTable);
+  const coverageSubqueryBase = buildCoverageSubqueryForPivot(query.has, dekningTable, sourceFilter);
 
   // Metric column with table alias
   const metricAliased = metric === '1' ? '1' : `a.${metric}`;
@@ -787,10 +1165,12 @@ function buildPopulationWhere(inClause: InClause | null): string {
   return conditions.join(' AND ');
 }
 
-function buildCoverageSubquery(has: HasClause | null, dekningTable: string, yearFilter: string): string | null {
+function buildCoverageSubquery(has: HasClause | null, dekningTable: string, yearFilter: string, sourceFilter: string | null): string | null {
   if (!has) {
     return null;
   }
+
+  const sourceCondition = sourceFilter ? ` AND ${sourceFilter}` : '';
 
   if (has.quantified) {
     const { quantifier, expressions } = has.quantified;
@@ -798,14 +1178,14 @@ function buildCoverageSubquery(has: HasClause | null, dekningTable: string, year
     if (quantifier === 'ANY') {
       // ANY: OR of all conditions
       const conditions = expressions.map(expr => expressionToSql(expr)).join(' OR ');
-      return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter} AND (${conditions})`;
+      return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter}${sourceCondition} AND (${conditions})`;
     }
 
     if (quantifier === 'ALL') {
       // ALL: INTERSECT of separate queries
       const subqueries = expressions.map(expr => {
         const condition = expressionToSql(expr);
-        return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter} AND ${condition}`;
+        return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter}${sourceCondition} AND ${condition}`;
       });
       return subqueries.join('\n    INTERSECT\n    ');
     }
@@ -813,55 +1193,56 @@ function buildCoverageSubquery(has: HasClause | null, dekningTable: string, year
     if (quantifier === 'NONE') {
       // NONE: NOT IN (any matching)
       const conditions = expressions.map(expr => expressionToSql(expr)).join(' OR ');
-      return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter} AND adrid NOT IN (
-        SELECT adrid FROM ${dekningTable} WHERE ${yearFilter} AND (${conditions})
+      return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter}${sourceCondition} AND adrid NOT IN (
+        SELECT adrid FROM ${dekningTable} WHERE ${yearFilter}${sourceCondition} AND (${conditions})
       )`;
     }
   }
 
   if (has.expression) {
     const condition = expressionToSql(has.expression);
-    return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter} AND ${condition}`;
+    return `SELECT DISTINCT adrid FROM ${dekningTable} WHERE ${yearFilter}${sourceCondition} AND ${condition}`;
   }
 
   throw new CodeGenError('HAS clause must have either quantified or expression');
 }
 
 // Correlated subquery for multi-year: uses d.aar = a.aar to match year per row
-function buildCoverageSubqueryForPivot(has: HasClause | null, dekningTable: string): string | null {
+function buildCoverageSubqueryForPivot(has: HasClause | null, dekningTable: string, sourceFilter: string | null): string | null {
   if (!has) {
     return null;
   }
 
   const yearCorrelation = 'd.aar = a.aar';
+  const sourceCondition = sourceFilter ? ` AND ${sourceFilter}` : '';
 
   if (has.quantified) {
     const { quantifier, expressions } = has.quantified;
 
     if (quantifier === 'ANY') {
       const conditions = expressions.map(expr => expressionToSql(expr)).join(' OR ');
-      return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation} AND (${conditions})`;
+      return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation}${sourceCondition} AND (${conditions})`;
     }
 
     if (quantifier === 'ALL') {
       const subqueries = expressions.map(expr => {
         const condition = expressionToSql(expr);
-        return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation} AND ${condition}`;
+        return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation}${sourceCondition} AND ${condition}`;
       });
       return subqueries.join('\n    INTERSECT\n    ');
     }
 
     if (quantifier === 'NONE') {
       const conditions = expressions.map(expr => expressionToSql(expr)).join(' OR ');
-      return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation} AND adrid NOT IN (
-        SELECT adrid FROM ${dekningTable} WHERE aar = a.aar AND (${conditions})
+      return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation}${sourceCondition} AND adrid NOT IN (
+        SELECT adrid FROM ${dekningTable} WHERE aar = a.aar${sourceCondition} AND (${conditions})
       )`;
     }
   }
 
   if (has.expression) {
     const condition = expressionToSql(has.expression);
-    return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation} AND ${condition}`;
+    return `SELECT DISTINCT adrid FROM ${dekningTable} d WHERE ${yearCorrelation}${sourceCondition} AND ${condition}`;
   }
 
   throw new CodeGenError('HAS clause must have either quantified or expression');

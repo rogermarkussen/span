@@ -4,6 +4,43 @@ import { compile, parse, toSql } from '../src/index.js';
 describe('SQL Generator', () => {
   const options = { year: 2024 };
 
+  describe('data source selection', () => {
+    it('filters out 4g/5g by default (fbb)', () => {
+      const sql = compile('HAS fiber COUNT hus', { year: 2024 });
+      expect(sql).toContain('span_dekning.parquet');
+      expect(sql).toContain("tek NOT IN ('4g', '5g')");
+    });
+
+    it('filters out 4g/5g for explicit fbb', () => {
+      const sql = compile('HAS fiber COUNT hus fbb', { year: 2024 });
+      expect(sql).toContain("tek NOT IN ('4g', '5g')");
+    });
+
+    it('filters to only 4g/5g for mob', () => {
+      const sql = compile('HAS 5g COUNT hus mob', { year: 2024 });
+      expect(sql).toContain('span_dekning.parquet');
+      expect(sql).toContain("tek IN ('4g', '5g')");
+      expect(sql).not.toContain("tek NOT IN");
+    });
+
+    it('uses no filter for begge', () => {
+      const sql = compile('HAS nedhast >= 100 COUNT hus begge', { year: 2024 });
+      expect(sql).toContain('span_dekning.parquet');
+      expect(sql).not.toContain("tek NOT IN ('4g', '5g')");
+      expect(sql).not.toContain("tek IN ('4g', '5g')");
+    });
+
+    it('applies correct filter for pivot queries with mob', () => {
+      const sql = compile('HAS 5g COUNT hus BY fylke FOR (2023, 2024) mob', {});
+      expect(sql).toContain("tek IN ('4g', '5g')");
+    });
+
+    it('applies correct filter for pivot queries with fbb', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR (2023, 2024) fbb', {});
+      expect(sql).toContain("tek NOT IN ('4g', '5g')");
+    });
+  });
+
   describe('basic queries', () => {
     it('generates SQL for minimal query', () => {
       const sql = compile('HAS fiber COUNT hus', options);
@@ -320,12 +357,16 @@ describe('SQL Generator', () => {
       expect(sql).not.toContain('AS "2022"');
     });
 
-    it('resolves FOR ar != 2023 to 2022 and 2024', () => {
-      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar != 2023', {});
+    it('resolves FOR ar != 2023 to include historical and modern years', () => {
+      // Comparison operators now include historical years when they could match
+      // ar != 2023 includes all years except 2023
+      const sql = compile('HAS fiber COUNT hus FOR ar != 2023', {});
 
+      // Should include historical and modern years (all from historikk.parquet)
       expect(sql).toContain('AS "2022"');
       expect(sql).toContain('AS "2024"');
       expect(sql).not.toContain('AS "2023"');
+      expect(sql).toContain('historikk.parquet');
     });
 
     it('resolves FOR ar > 2022 to 2023 and 2024', () => {
@@ -336,12 +377,16 @@ describe('SQL Generator', () => {
       expect(sql).toContain('AS "2024"');
     });
 
-    it('resolves FOR ar <= 2023 to 2022 and 2023', () => {
-      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar <= 2023', {});
+    it('resolves FOR ar <= 2023 to include historical and modern years', () => {
+      // Comparison operators now include historical years when they could match
+      // ar <= 2023 includes all years up to and including 2023
+      const sql = compile('HAS fiber COUNT hus FOR ar <= 2023', {});
 
+      // Should include all years up to 2023 (all from historikk.parquet)
       expect(sql).toContain('AS "2022"');
       expect(sql).toContain('AS "2023"');
       expect(sql).not.toContain('AS "2024"');
+      expect(sql).toContain('historikk.parquet');
     });
   });
 
@@ -517,6 +562,16 @@ describe('SQL Generator', () => {
       }).toThrow('Filters "privat" and "bedrift" can only be used with COUNT ab');
     });
 
+    it('generates pivot SQL for ab BY fylke multi-year', () => {
+      const sql = compile('HAS fiber COUNT ab BY fylke FOR (2023, 2024)', {});
+
+      expect(sql).toContain('AS "2023"');
+      expect(sql).toContain('AS "2024"');
+      expect(sql).toContain('fylke_mapping');
+      expect(sql).toContain('span_ab.parquet');
+      expect(sql).toContain("'Norge' AS gruppe");
+    });
+
     it('includes national total for ab BY fylke', () => {
       const sql = compile('HAS fiber COUNT ab BY fylke FOR 2024', {});
 
@@ -531,6 +586,255 @@ describe('SQL Generator', () => {
 
       expect(sql).not.toContain('UNION ALL');
       expect(sql).not.toContain("'Norge' AS gruppe");
+    });
+  });
+
+  describe('historical data (historikk.parquet)', () => {
+    describe('routing to historikk', () => {
+      it('uses historikk.parquet for years before 2022', () => {
+        const sql = compile('HAS fiber COUNT hus FOR 2015', {});
+
+        expect(sql).toContain("'data/historikk.parquet'");
+        expect(sql).toContain('aar = 2015');
+        expect(sql).not.toContain('span_adr.parquet');
+        expect(sql).not.toContain('span_dekning.parquet');
+      });
+
+      it('uses regular tables for years 2022+', () => {
+        const sql = compile('HAS fiber COUNT hus FOR 2022', {});
+
+        expect(sql).toContain('span_adr.parquet');
+        expect(sql).toContain('span_dekning.parquet');
+        expect(sql).not.toContain('historikk.parquet');
+      });
+
+      it('uses historikk for multi-year queries all before 2022', () => {
+        const sql = compile('HAS fiber COUNT hus FOR (2015, 2018, 2020)', {});
+
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).toContain('AS "2015"');
+        expect(sql).toContain('AS "2018"');
+        expect(sql).toContain('AS "2020"');
+      });
+    });
+
+    describe('historikk SQL generation', () => {
+      it('generates correct SQL for technology query', () => {
+        const sql = compile('HAS fiber COUNT hus FOR 2015', {});
+
+        expect(sql).toContain("type = 'tek'");
+        expect(sql).toContain("indikator = 'fiber'");
+        expect(sql).toContain("geo = 'totalt'");
+        expect(sql).toContain('andel'); // Returns percentage
+      });
+
+      it('generates correct SQL for speed query', () => {
+        const sql = compile('HAS nedhast >= 100 COUNT hus FOR 2015', {});
+
+        expect(sql).toContain("type = 'hast'");
+        expect(sql).toContain("indikator = 'ned>=100'");
+      });
+
+      it('generates correct SQL for BY tett grouping', () => {
+        const sql = compile('HAS fiber COUNT hus BY tett FOR 2015', {});
+
+        expect(sql).toContain("geo IN ('totalt', 'tettbygd', 'spredtbygd')");
+        expect(sql).toContain("CASE WHEN geo = 'tettbygd' THEN 'Tettsted'");
+        expect(sql).toContain("WHEN geo = 'spredtbygd' THEN 'Spredt'");
+      });
+
+      it('generates correct SQL for IN tett filter', () => {
+        const sql = compile('HAS fiber IN tett COUNT hus FOR 2015', {});
+
+        expect(sql).toContain("geo = 'tettbygd'");
+      });
+
+      it('generates correct SQL for IN spredt filter', () => {
+        const sql = compile('HAS fiber IN spredt COUNT hus FOR 2015', {});
+
+        expect(sql).toContain("geo = 'spredtbygd'");
+      });
+
+      it('handles multi-year pivot for historikk', () => {
+        const sql = compile('HAS fiber COUNT hus BY tett FOR (2018, 2019, 2020)', {});
+
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).toContain('AS "2018"');
+        expect(sql).toContain('AS "2019"');
+        expect(sql).toContain('AS "2020"');
+        expect(sql).toContain('MAX(CASE WHEN aar = 2018 THEN dekning');
+      });
+
+      it('adds TOP limit correctly', () => {
+        const sql = compile('HAS fiber COUNT hus BY tett TOP 2 FOR 2015', {});
+
+        expect(sql).toContain('LIMIT 2');
+      });
+    });
+
+    describe('historikk error handling', () => {
+      it('rejects BY fylke for historical data', () => {
+        expect(() => {
+          compile('HAS fiber COUNT hus BY fylke FOR 2015', {});
+        }).toThrow(/Gruppering "fylke" er ikke tilgjengelig for historiske data/);
+      });
+
+      it('rejects BY kom for historical data', () => {
+        expect(() => {
+          compile('HAS fiber COUNT hus BY kom FOR 2015', {});
+        }).toThrow(/Gruppering "kom" er ikke tilgjengelig for historiske data/);
+      });
+
+      it('rejects tilbyder filter for historical data', () => {
+        expect(() => {
+          compile('HAS tilb = "Telenor" COUNT hus FOR 2015', {});
+        }).toThrow(/Tilbyder-filter er ikke tilgjengelig for historiske data/);
+      });
+
+      it('rejects fylke filter for historical data', () => {
+        expect(() => {
+          compile('HAS fiber IN fylke = "Oslo" COUNT hus FOR 2015', {});
+        }).toThrow(/Geografisk filter "fylke" er ikke tilgjengelig for historiske data/);
+      });
+
+      it('rejects unsupported speed threshold for historical data', () => {
+        expect(() => {
+          compile('HAS nedhast >= 75 COUNT hus FOR 2015', {});
+        }).toThrow(/Hastighetsterskel 75 Mbps er ikke tilgjengelig i historisk data/);
+      });
+
+      it('rejects SHOW count for historical data', () => {
+        expect(() => {
+          compile('HAS fiber COUNT hus SHOW count FOR 2015', {});
+        }).toThrow(/SHOW count er ikke tilgjengelig for historiske data/);
+      });
+
+      it('supports mixed historical and modern years', () => {
+        const sql = compile('HAS fiber COUNT hus FOR (2015, 2024)', {});
+
+        // Should use historikk.parquet for ALL years for consistent methodology
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).toContain('AS "2015"');
+        expect(sql).toContain('AS "2024"');
+        // Should NOT use span_adr/span_dekning since historikk has all years
+        expect(sql).not.toContain('span_adr.parquet');
+        expect(sql).not.toContain('span_dekning.parquet');
+      });
+
+      it('rejects privat filter for historical data', () => {
+        expect(() => {
+          compile('HAS fiber IN privat COUNT ab FOR 2015', {});
+        }).toThrow(/Filter "privat" er ikke tilgjengelig for historiske data/);
+      });
+
+      it('accepts supported technologies for historical data', () => {
+        // These should not throw
+        compile('HAS fiber COUNT hus FOR 2015', {});
+        compile('HAS kabel COUNT hus FOR 2015', {});
+        compile('HAS dsl COUNT hus FOR 2015', {});
+        compile('HAS 4g COUNT hus FOR 2018', {});
+        compile('HAS 5g COUNT hus FOR 2020', {});
+        compile('HAS ftb COUNT hus FOR 2018', {});
+      });
+
+      it('accepts supported speed thresholds for historical data', () => {
+        // These should not throw
+        compile('HAS nedhast >= 10 COUNT hus FOR 2015', {});
+        compile('HAS nedhast >= 30 COUNT hus FOR 2015', {});
+        compile('HAS nedhast >= 50 COUNT hus FOR 2015', {});
+        compile('HAS nedhast >= 100 COUNT hus FOR 2015', {});
+        compile('HAS nedhast >= 1000 COUNT hus FOR 2015', {});
+      });
+    });
+
+    describe('SHOW andel for historikk', () => {
+      it('returns andel by default', () => {
+        const sql = compile('HAS fiber COUNT hus FOR 2015', {});
+
+        expect(sql).toContain('andel');
+        expect(sql).toContain('ROUND(dekning * 100, 1)');
+      });
+
+      it('accepts SHOW andel explicitly', () => {
+        const sql = compile('HAS fiber COUNT hus SHOW andel FOR 2015', {});
+
+        expect(sql).toContain('andel');
+      });
+
+      it('accepts SHOW begge (returns andel only)', () => {
+        // SHOW begge for historikk data should work but only return andel
+        const sql = compile('HAS fiber COUNT hus SHOW begge FOR 2015', {});
+
+        expect(sql).toContain('historikk.parquet');
+        // Since we can't return count, it just returns andel
+        expect(sql).toContain('andel');
+      });
+    });
+
+    describe('queries without HAS for historikk', () => {
+      it('generates SQL without HAS clause', () => {
+        const sql = compile('COUNT hus FOR 2015', {});
+
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).toContain("'Norge' AS gruppe");
+        // Without HAS, indikator filter is not applied
+        expect(sql).not.toContain('indikator =');
+      });
+    });
+
+    describe('mixed years (historical + modern)', () => {
+      it('uses historikk.parquet for ar < 2024', () => {
+        const sql = compile('HAS fiber COUNT hus FOR ar < 2024', {});
+
+        // Uses historikk.parquet for ALL years for consistent methodology
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).not.toContain('span_adr.parquet');
+        expect(sql).not.toContain('span_dekning.parquet');
+        // Should have year columns
+        expect(sql).toContain('AS "2022"');
+        expect(sql).toContain('AS "2023"');
+        expect(sql).not.toContain('AS "2024"');
+      });
+
+      it('uses historikk.parquet for ar >= 2018', () => {
+        const sql = compile('HAS fiber COUNT hus FOR ar >= 2018', {});
+
+        // Uses historikk.parquet for ALL years for consistent methodology
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).not.toContain('span_adr.parquet');
+        expect(sql).toContain('AS "2018"');
+        expect(sql).toContain('AS "2022"');
+        expect(sql).toContain('AS "2024"');
+      });
+
+      it('supports BY tett for mixed years', () => {
+        const sql = compile('HAS fiber COUNT hus BY tett FOR ar >= 2020', {});
+
+        expect(sql).toContain('historikk.parquet');
+        expect(sql).toContain('Tettsted');
+        expect(sql).toContain('Spredt');
+      });
+
+      it('supports IN tett filter for mixed years', () => {
+        const sql = compile('HAS fiber IN tett COUNT hus FOR ar >= 2020', {});
+
+        expect(sql).toContain("geo = 'tettbygd'");
+      });
+
+      it('rejects BY fylke for mixed years (historikk limitation)', () => {
+        expect(() => {
+          compile('HAS fiber COUNT hus BY fylke FOR ar >= 2020', {});
+        }).toThrow(/Gruppering "fylke" er ikke tilgjengelig for historiske data/);
+      });
+
+      it('returns only andel (percentage) for mixed years', () => {
+        const sql = compile('HAS fiber COUNT hus FOR (2018, 2022)', {});
+
+        // Should return percentage via dekning column (values 0-1 multiplied by 100)
+        expect(sql).toContain('ROUND');
+        expect(sql).toContain('dekning');
+        expect(sql).toContain('* 100');
+      });
     });
   });
 });

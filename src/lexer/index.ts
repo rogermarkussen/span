@@ -10,5 +10,6 @@ export {
   SORT_DIRS,
   SORT_FIELDS,
   FIELDS,
-  OPERATORS
+  OPERATORS,
+  DATA_SOURCES
 } from './tokens.js';

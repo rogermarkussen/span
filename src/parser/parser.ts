@@ -8,7 +8,8 @@ import {
   OUTPUTS,
   SORT_DIRS,
   SORT_FIELDS,
-  FIELDS
+  FIELDS,
+  DATA_SOURCES
 } from '../lexer/index.js';
 import { ParseError } from '../errors/index.js';
 import {
@@ -26,7 +27,8 @@ import {
   ComparisonOp,
   CoverageFlag,
   PopulationFlag,
-  ForClause
+  ForClause,
+  DataSource
 } from './ast.js';
 
 export class Parser {
@@ -51,10 +53,11 @@ export class Parser {
     const sort = this.parseSortClause();
     const top = this.parseTopClause();
     const forClause = this.parseForClause();
+    const source = this.parseDataSourceClause();
 
     this.expect('EOF');
 
-    return { has, in: inClause, count, by, show, sort, top, for: forClause };
+    return { has, in: inClause, count, by, show, sort, top, for: forClause, source };
   }
 
   private current(): Token {
@@ -473,6 +476,13 @@ export class Parser {
     }
 
     return { type: 'list', years };
+  }
+
+  private parseDataSourceClause(): DataSource {
+    if (this.checkIdentifier(DATA_SOURCES)) {
+      return this.advance().value.toLowerCase() as DataSource;
+    }
+    return 'fbb';  // default
   }
 }
 

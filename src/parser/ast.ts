@@ -6,6 +6,7 @@ export type Output = 'count' | 'andel' | 'begge';
 export type SortDir = 'ASC' | 'DESC';
 export type Quantifier = 'ANY' | 'ALL' | 'NONE';
 export type ComparisonOp = '=' | '!=' | '>=' | '<=' | '>' | '<';
+export type DataSource = 'fbb' | 'mob' | 'begge';
 
 export interface FlagExpression {
   type: 'flag';
@@ -72,4 +73,5 @@ export interface SpanQuery {
   sort: SortClause;
   top: number | null;
   for: ForClause | null;
+  source: DataSource;
 }

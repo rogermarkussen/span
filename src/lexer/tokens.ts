@@ -57,3 +57,7 @@ export const FIELDS = new Set([
 export const OPERATORS = new Set([
   '=', '!=', '>=', '<=', '>', '<'
 ]);
+
+export const DATA_SOURCES = new Set([
+  'fbb', 'mob', 'begge'
+]);
