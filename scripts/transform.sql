@@ -8,7 +8,7 @@
 -- Denormalisert tabell med én rad per adresse-år-teknologi-tilbyder
 -- Hastigheter konverteres fra kbps til Mbps
 -- Teknologier normaliseres til engelske navn
--- Fylker normaliseres til 2024-struktur basert på kommunenummer
+-- Fylker normaliseres til 2024-struktur via fylke24-kolonnen
 
 COPY (
   WITH tek_map AS (
@@ -23,41 +23,6 @@ COPY (
       ('4g', '4g'),
       ('5g', '5g')
     ) AS t(tek_orig, tek_norm)
-  ),
-
-  fylke_2024_map AS (
-    -- Kommunenummer (første 2 siffer) → 2024 fylkenavn
-    -- For 2022-2023 data som bruker gamle fylkesnavn
-    SELECT * FROM (VALUES
-      -- Viken splittes
-      (30, 'AKERSHUS'),   -- Gamle Akershus-kommuner beholder nr 30xx
-      (31, 'ØSTFOLD'),    -- Østfold får 31xx
-      (32, 'AKERSHUS'),   -- Nye Akershus-kommuner
-      (33, 'BUSKERUD'),   -- Buskerud får 33xx
-      -- Vestfold og Telemark splittes
-      (38, 'VESTFOLD'),   -- Bruker gammelt Vestfold-område midlertidig
-      (39, 'VESTFOLD'),   -- Nye Vestfold
-      (40, 'TELEMARK'),   -- Nye Telemark
-      -- Troms og Finnmark splittes
-      (54, 'TROMS'),      -- Gammelt samlet nummer
-      (55, 'TROMS'),
-      (56, 'FINNMARK'),
-      -- Uendrede fylker
-      (3, 'OSLO'),
-      (11, 'ROGALAND'),
-      (12, 'ROGALAND'),
-      (15, 'MØRE OG ROMSDAL'),
-      (16, 'MØRE OG ROMSDAL'),
-      (18, 'NORDLAND'),
-      (19, 'NORDLAND'),
-      (34, 'INNLANDET'),
-      (35, 'INNLANDET'),
-      (42, 'AGDER'),
-      (46, 'VESTLAND'),
-      (47, 'VESTLAND'),
-      (50, 'TRØNDELAG'),
-      (51, 'TRØNDELAG')
-    ) AS t(fylkenr, fylke_2024)
   ),
 
   -- 2024 FBB data
@@ -102,12 +67,12 @@ COPY (
     JOIN tek_map tm ON m.tek = tm.tek_orig
   ),
 
-  -- 2023 FBB data med fylkesnormalisering
+  -- 2023 FBB data (bruker fylke24-kolonnen for 2024-struktur)
   fbb_2023 AS (
     SELECT
       2023 AS aar,
       f.adrid,
-      COALESCE(fm.fylke_2024, a.fylke) AS fylke,
+      a.fylke24 AS fylke,
       a.komnavn,
       a.postnr,
       a.ertett,
@@ -121,15 +86,14 @@ COPY (
     FROM 'data/2023/fbb.parquet' f
     JOIN 'data/2023/adr.parquet' a ON f.adrid = a.adrid
     JOIN tek_map tm ON f.tek = tm.tek_orig
-    LEFT JOIN fylke_2024_map fm ON CAST(a.komnr / 100 AS INT) = fm.fylkenr
   ),
 
-  -- 2023 MOB data med fylkesnormalisering
+  -- 2023 MOB data (bruker fylke24-kolonnen for 2024-struktur)
   mob_2023 AS (
     SELECT
       2023 AS aar,
       m.adrid,
-      COALESCE(fm.fylke_2024, a.fylke) AS fylke,
+      a.fylke24 AS fylke,
       a.komnavn,
       a.postnr,
       a.ertett,
@@ -143,15 +107,14 @@ COPY (
     FROM 'data/2023/mob.parquet' m
     JOIN 'data/2023/adr.parquet' a ON m.adrid = a.adrid
     JOIN tek_map tm ON m.tek = tm.tek_orig
-    LEFT JOIN fylke_2024_map fm ON CAST(a.komnr / 100 AS INT) = fm.fylkenr
   ),
 
-  -- 2022 FBB data med fylkesnormalisering (ingen mob for 2022)
+  -- 2022 FBB data (ingen mob for 2022, bruker fylke24 for 2024-struktur)
   fbb_2022 AS (
     SELECT
       2022 AS aar,
       f.adrid,
-      COALESCE(fm.fylke_2024, a.fylke) AS fylke,
+      a.fylke24 AS fylke,
       a.komnavn,
       a.postnr,
       a.ertett,
@@ -165,7 +128,6 @@ COPY (
     FROM 'data/2022/fbb.parquet' f
     JOIN 'data/2022/adr.parquet' a ON f.adrid = a.adrid
     JOIN tek_map tm ON f.tek = tm.tek_orig
-    LEFT JOIN fylke_2024_map fm ON CAST(a.komnr / 100 AS INT) = fm.fylkenr
   )
 
   -- Kombiner alle år og dekningstyper
@@ -192,21 +154,7 @@ FROM 'data/span_dekning.parquet';
 -- Deduplisert adresseliste per år for beregning av dekningsprosent
 
 COPY (
-  WITH fylke_2024_map AS (
-    SELECT * FROM (VALUES
-      (30, 'AKERSHUS'), (31, 'ØSTFOLD'), (32, 'AKERSHUS'), (33, 'BUSKERUD'),
-      (38, 'VESTFOLD'), (39, 'VESTFOLD'), (40, 'TELEMARK'),
-      (54, 'TROMS'), (55, 'TROMS'), (56, 'FINNMARK'),
-      (3, 'OSLO'), (11, 'ROGALAND'), (12, 'ROGALAND'),
-      (15, 'MØRE OG ROMSDAL'), (16, 'MØRE OG ROMSDAL'),
-      (18, 'NORDLAND'), (19, 'NORDLAND'),
-      (34, 'INNLANDET'), (35, 'INNLANDET'),
-      (42, 'AGDER'), (46, 'VESTLAND'), (47, 'VESTLAND'),
-      (50, 'TRØNDELAG'), (51, 'TRØNDELAG')
-    ) AS t(fylkenr, fylke_2024)
-  ),
-
-  adr_2024 AS (
+  WITH adr_2024 AS (
     SELECT
       2024 AS aar,
       adrid,
@@ -223,28 +171,26 @@ COPY (
     SELECT
       2023 AS aar,
       a.adrid,
-      COALESCE(fm.fylke_2024, a.fylke) AS fylke,
+      a.fylke24 AS fylke,
       a.komnavn,
       a.postnr,
       a.ertett,
       a.hus,
       a.fritid
     FROM 'data/2023/adr.parquet' a
-    LEFT JOIN fylke_2024_map fm ON CAST(a.komnr / 100 AS INT) = fm.fylkenr
   ),
 
   adr_2022 AS (
     SELECT
       2022 AS aar,
       a.adrid,
-      COALESCE(fm.fylke_2024, a.fylke) AS fylke,
+      a.fylke24 AS fylke,
       a.komnavn,
       a.postnr,
       a.ertett,
       a.hus,
       a.fritid
     FROM 'data/2022/adr.parquet' a
-    LEFT JOIN fylke_2024_map fm ON CAST(a.komnr / 100 AS INT) = fm.fylkenr
   )
 
   SELECT * FROM adr_2024
