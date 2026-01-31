@@ -83,15 +83,15 @@ function isSubscriptionOnlyFilter(filter: InFilter): boolean {
   return filter.type === 'population' && (filter.flag === 'private' || filter.flag === 'business');
 }
 
-// Validate that private/business filters are only used with COUNT subscriptions
+// Validate that private/business filters are only used with COUNT ab
 function validateFilters(query: SpanQuery): void {
   if (!query.in) return;
 
   const hasSubscriptionOnlyFilters = query.in.filters.some(isSubscriptionOnlyFilter);
 
-  if (hasSubscriptionOnlyFilters && query.count !== 'subscriptions') {
+  if (hasSubscriptionOnlyFilters && query.count !== 'ab') {
     throw new CodeGenError(
-      'Filters "private" and "business" can only be used with COUNT subscriptions'
+      'Filters "private" and "business" can only be used with COUNT ab'
     );
   }
 }
@@ -110,7 +110,7 @@ export function generateSql(query: SpanQuery, options: SqlOptions): string {
   }
 
   // Route to appropriate generator based on metric
-  if (query.count === 'subscriptions') {
+  if (query.count === 'ab') {
     return generateSubscriptionsSql(query, years, dataPath);
   }
 
@@ -189,18 +189,21 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
   let sql: string;
 
   if (needsNationalTotal) {
-    // Wrap in CTE and add national total with UNION ALL
+    // Wrap in CTEs and add national total with UNION ALL
     sql = `
 WITH by_fylke AS (
   SELECT ${groupExpr} AS gruppe${yearColumn}${selectCols}
   FROM ${abTable}
   ${whereClause}
   GROUP BY ${groupExpr}${groupByYear}
+),
+with_national AS (
+  SELECT * FROM by_fylke
+  UNION ALL
+  SELECT 'Norge' AS gruppe${yearColumn}${selectCols.replace('COUNT(*)', 'SUM(total)')}
+  FROM by_fylke${years.length > 1 ? ' GROUP BY aar' : ''}
 )
-SELECT * FROM by_fylke
-UNION ALL
-SELECT 'Norge' AS gruppe${yearColumn.replace(', aar', ', aar')}${selectCols.replace('COUNT(*)', 'SUM(total)')}
-FROM by_fylke${years.length > 1 ? ' GROUP BY aar' : ''}
+SELECT * FROM with_national
 ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, ${query.sort.field === 'count' ? 'total' : 'gruppe'} ${query.sort.dir}
 ${limit}`.trim();
   } else {
@@ -217,7 +220,7 @@ ${limit}`.trim();
 }
 
 function buildSubscriptionsSelectColumns(show: 'count' | 'andel' | 'begge'): string {
-  // For subscriptions, we only have count (no population to calculate percent from)
+  // For ab, we only have count (no population to calculate percent from)
   // We'll return count for all show options since percent doesn't make sense
   return ', COUNT(*) AS total';
 }
@@ -230,7 +233,7 @@ function buildSubscriptionsOrderBy(sort: { field: string; dir: string }): string
       orderField = 'total';
       break;
     case 'andel':
-      // andel doesn't apply to subscriptions, fall back to total
+      // andel doesn't apply to ab, fall back to total
       orderField = 'total';
       break;
     case 'group':

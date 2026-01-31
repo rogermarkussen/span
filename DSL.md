@@ -165,10 +165,10 @@ HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 | `rural` | flag | - | Rural areas only |
 | `type` | string | house, apartment, cabin | Building type |
 | `postal` | string | 0001-9999 | Postal code |
-| `private` | flag | - | Private subscriptions only* |
-| `business` | flag | - | Business subscriptions only* |
+| `private` | flag | - | Private ab only* |
+| `business` | flag | - | Business ab only* |
 
-\* Only available with `COUNT subscriptions`
+\* Only available with `COUNT ab`
 
 ### Examples
 
@@ -177,7 +177,7 @@ IN county = Oslo
 IN urban
 IN type = cabin
 IN county = Rogaland AND urban
-IN private                     -- Only for COUNT subscriptions
+IN private                     -- Only for COUNT ab
 ```
 
 ---
@@ -190,17 +190,17 @@ IN private                     -- Only for COUNT subscriptions
 | `addresses` | COUNT(adresse_id) | Number of addresses |
 | `buildings` | COUNT(DISTINCT bygning_id) | Number of buildings |
 | `cabins` | antall_fritidsboliger | Number of cabins/vacation homes |
-| `subscriptions` | COUNT(*) | Number of subscriptions |
+| `ab` | COUNT(*) | Number of ab |
 
 ### Subscriptions
 
-`COUNT subscriptions` counts actual subscriptions from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
+`COUNT ab` counts actual ab from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
 
-**Note:** For subscriptions, you can use special filters:
-- `IN private` - Private customer subscriptions only
-- `IN business` - Business subscriptions only
+**Note:** For ab, you can use special filters:
+- `IN private` - Private customer ab only
+- `IN business` - Business ab only
 
-These filters are **only** available with `COUNT subscriptions`.
+These filters are **only** available with `COUNT ab`.
 
 ---
 
@@ -430,12 +430,12 @@ Results include a `aar` column for year when multiple years are specified.
 ---
 
 ### Example 13: Private Fiber Subscriptions
-*"Private fiber subscriptions by county"*
+*"Private fiber ab by county"*
 
 ```
 HAS fiber
 IN private
-COUNT subscriptions
+COUNT ab
 BY county
 FOR 2024
 ```
@@ -443,12 +443,12 @@ FOR 2024
 ---
 
 ### Example 14: Business High-Speed Subscriptions
-*"Business subscriptions with 100+ Mbps by provider"*
+*"Business ab with 100+ Mbps by provider"*
 
 ```
 HAS speed >= 100
 IN business
-COUNT subscriptions
+COUNT ab
 BY provider
 SORT count DESC
 TOP 10
@@ -487,7 +487,7 @@ string      = word | "'" { any_char } "'"
 number      = digit { digit }
 
 count_clause = "COUNT" metric
-metric      = "homes" | "addresses" | "buildings" | "cabins" | "subscriptions"
+metric      = "homes" | "addresses" | "buildings" | "cabins" | "ab"
 
 by_clause   = "BY" grouping
 grouping    = "national" | "county" | "municipality" | "postal" | "urban" | "provider" | "tech"
@@ -517,7 +517,7 @@ const TOKEN_TYPES = {
   POPULATION_FLAG: /^(urban|rural|private|business)$/i,
   COVERAGE_FIELD: /^(tech|speed|upload|provider)$/i,
   POPULATION_FIELD: /^(county|municipality|type|postal)$/i,
-  METRIC: /^(homes|addresses|buildings|cabins|subscriptions)$/i,
+  METRIC: /^(homes|addresses|buildings|cabins|ab)$/i,
   GROUPING: /^(national|county|municipality|postal|urban|provider|tech)$/i,
   OUTPUT: /^(count|percent|both)$/i,
   OPERATOR: /^(=|!=|>=|<=|>|<|IN)$/,

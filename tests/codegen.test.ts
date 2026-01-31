@@ -383,9 +383,9 @@ describe('SQL Generator', () => {
     });
   });
 
-  describe('COUNT subscriptions', () => {
+  describe('COUNT ab', () => {
     it('generates SQL for basic subscription count', () => {
-      const sql = compile('HAS fiber COUNT subscriptions FOR 2024', {});
+      const sql = compile('HAS fiber COUNT ab FOR 2024', {});
 
       expect(sql).toContain("'data/span_ab.parquet'");
       expect(sql).toContain('COUNT(*)');
@@ -394,7 +394,7 @@ describe('SQL Generator', () => {
     });
 
     it('generates SQL for subscription count by fylke', () => {
-      const sql = compile('HAS fiber COUNT subscriptions BY fylke FOR 2024', {});
+      const sql = compile('HAS fiber COUNT ab BY fylke FOR 2024', {});
 
       expect(sql).toContain('fylke AS gruppe');
       expect(sql).toContain('GROUP BY fylke');
@@ -402,34 +402,34 @@ describe('SQL Generator', () => {
     });
 
     it('generates SQL for subscription count with speed filter', () => {
-      const sql = compile('HAS nedhast >= 100 COUNT subscriptions FOR 2024', {});
+      const sql = compile('HAS nedhast >= 100 COUNT ab FOR 2024', {});
 
       expect(sql).toContain('ned_mbps >= 100');
       expect(sql).toContain('COUNT(*)');
     });
 
-    it('generates SQL for private subscriptions', () => {
-      const sql = compile('HAS fiber IN private COUNT subscriptions FOR 2024', {});
+    it('generates SQL for private ab', () => {
+      const sql = compile('HAS fiber IN private COUNT ab FOR 2024', {});
 
       expect(sql).toContain('privat = true');
       expect(sql).toContain("tek = 'fiber'");
     });
 
-    it('generates SQL for business subscriptions', () => {
-      const sql = compile('HAS fiber IN business COUNT subscriptions FOR 2024', {});
+    it('generates SQL for business ab', () => {
+      const sql = compile('HAS fiber IN business COUNT ab FOR 2024', {});
 
       expect(sql).toContain('privat = false');
     });
 
-    it('generates SQL for private subscriptions by tilb', () => {
-      const sql = compile('HAS fiber IN private COUNT subscriptions BY tilb FOR 2024', {});
+    it('generates SQL for private ab by tilb', () => {
+      const sql = compile('HAS fiber IN private COUNT ab BY tilb FOR 2024', {});
 
       expect(sql).toContain('tilb AS gruppe');
       expect(sql).toContain('privat = true');
     });
 
     it('generates multi-year subscription query', () => {
-      const sql = compile('HAS fiber COUNT subscriptions FOR (2023, 2024)', {});
+      const sql = compile('HAS fiber COUNT ab FOR (2023, 2024)', {});
 
       expect(sql).toContain('aar IN (2023, 2024)');
       expect(sql).toContain(', aar'); // year column in SELECT
@@ -439,17 +439,17 @@ describe('SQL Generator', () => {
     it('rejects private/business filter with non-subscription metric', () => {
       expect(() => {
         compile('HAS fiber IN private COUNT hus FOR 2024', {});
-      }).toThrow('Filters "private" and "business" can only be used with COUNT subscriptions');
+      }).toThrow('Filters "private" and "business" can only be used with COUNT ab');
     });
 
     it('rejects business filter with non-subscription metric', () => {
       expect(() => {
         compile('HAS fiber IN business COUNT hus FOR 2024', {});
-      }).toThrow('Filters "private" and "business" can only be used with COUNT subscriptions');
+      }).toThrow('Filters "private" and "business" can only be used with COUNT ab');
     });
 
-    it('includes national total for subscriptions BY fylke', () => {
-      const sql = compile('HAS fiber COUNT subscriptions BY fylke FOR 2024', {});
+    it('includes national total for ab BY fylke', () => {
+      const sql = compile('HAS fiber COUNT ab BY fylke FOR 2024', {});
 
       expect(sql).toContain('UNION ALL');
       expect(sql).toContain("'Norge' AS gruppe");
@@ -457,8 +457,8 @@ describe('SQL Generator', () => {
       expect(sql).toContain("CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END");
     });
 
-    it('does not add national total for subscriptions BY kom', () => {
-      const sql = compile('HAS fiber COUNT subscriptions BY kom FOR 2024', {});
+    it('does not add national total for ab BY kom', () => {
+      const sql = compile('HAS fiber COUNT ab BY kom FOR 2024', {});
 
       expect(sql).not.toContain('UNION ALL');
       expect(sql).not.toContain("'Norge' AS gruppe");

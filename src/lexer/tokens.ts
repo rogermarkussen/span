@@ -31,7 +31,7 @@ export const POPULATION_FLAGS = new Set([
 ]);
 
 export const METRICS = new Set([
-  'hus', 'adr', 'fritid', 'subscriptions'
+  'hus', 'adr', 'fritid', 'ab'
 ]);
 
 export const GROUPINGS = new Set([

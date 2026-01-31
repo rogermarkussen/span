@@ -170,7 +170,7 @@ Begrens hvilken befolkning du måler mot.
 | `private` | flagg | - | Kun privatkundeabonnementer* |
 | `business` | flagg | - | Kun bedriftsabonnementer* |
 
-\* Kun tilgjengelig med `COUNT subscriptions`
+\* Kun tilgjengelig med `COUNT ab`
 
 **Eksempler:**
 ```
@@ -178,7 +178,7 @@ IN fylke = Oslo
 IN tett
 IN type = cabin
 IN fylke = Rogaland AND tett
-IN private                     -- Kun for COUNT subscriptions
+IN private                     -- Kun for COUNT ab
 ```
 
 ---
@@ -192,23 +192,23 @@ Hva du vil telle:
 | `hus` | Antall husstander |
 | `adr` | Antall adresser |
 | `fritid` | Antall fritidsboliger |
-| `subscriptions` | Antall abonnementer |
+| `ab` | Antall abonnementer |
 
-### Abonnementer (subscriptions)
+### Abonnementer (ab)
 
-`COUNT subscriptions` teller faktiske abonnementer fra abonnementsdatasettet (`span_ab.parquet`), i motsetning til de andre metrikkene som teller potensielle dekningsmuligheter.
+`COUNT ab` teller faktiske abonnementer fra abonnementsdatasettet (`span_ab.parquet`), i motsetning til de andre metrikkene som teller potensielle dekningsmuligheter.
 
 **Merk:** For abonnementer kan du bruke spesielle filtre:
 - `IN private` - Kun privatkundeabonnementer
 - `IN business` - Kun bedriftsabonnementer
 
-Disse filtrene er **kun** tilgjengelige for `COUNT subscriptions`.
+Disse filtrene er **kun** tilgjengelige for `COUNT ab`.
 
 **Eksempler:**
 ```
-HAS fiber COUNT subscriptions FOR 2024                    -- Alle fiberabonnementer
-HAS fiber IN private COUNT subscriptions BY fylke FOR 2024  -- Private fiberabonnementer per fylke
-HAS nedhast >= 100 IN business COUNT subscriptions FOR 2024 -- Bedriftsabonnementer med 100+ Mbps
+HAS fiber COUNT ab FOR 2024                    -- Alle fiberabonnementer
+HAS fiber IN private COUNT ab BY fylke FOR 2024  -- Private fiberabonnementer per fylke
+HAS nedhast >= 100 IN business COUNT ab FOR 2024 -- Bedriftsabonnementer med 100+ Mbps
 ```
 
 ---
@@ -487,7 +487,7 @@ SORT count DESC
 ```
 HAS fiber
 IN private
-COUNT subscriptions
+COUNT ab
 BY fylke
 SORT count DESC
 FOR 2024
@@ -502,7 +502,7 @@ FOR 2024
 ```
 HAS nedhast >= 100
 IN business
-COUNT subscriptions
+COUNT ab
 BY tilb
 SORT count DESC
 TOP 10
@@ -584,10 +584,10 @@ IN <populasjonsfilter>       -- Valgfri: Hvilken befolkning?
   fylke = Oslo               -- Fylkesfilter
   tett|spredt                -- Tettbygd/spredtbygd
   type = cabin               -- Bygningstype
-  private|business           -- Kun for COUNT subscriptions
+  private|business           -- Kun for COUNT ab
 
 COUNT <metrikk>              -- Obligatorisk: Hva telles?
-  hus|adr|fritid|subscriptions
+  hus|adr|fritid|ab
 
 BY <gruppering>              -- Valgfri: Hvordan gruppere?
   total|fylke|kom|postnr|tett|tilb|tek

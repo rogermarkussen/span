@@ -15,7 +15,7 @@ export const METRIC_MAPPINGS: Record<Metric, string> = {
   'hus': 'hus',
   'adr': '1',  // COUNT(1) for addresses
   'fritid': 'fritid',
-  'subscriptions': '1'  // COUNT(1) for subscription rows
+  'ab': '1'  // COUNT(1) for subscription rows
 };
 
 // Grouping mappings: DSL grouping → SQL expression
