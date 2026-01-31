@@ -123,9 +123,14 @@ describe('SQL Generator', () => {
       expect(sql).toContain('ertett = false');
     });
 
-    it('generates fylke filter', () => {
+    it('generates fylke filter (case-insensitive)', () => {
       const sql = compile('HAS fiber IN fylke = "Oslo" COUNT hus', options);
-      expect(sql).toContain("fylke = 'Oslo'");
+      expect(sql).toContain("UPPER(fylke) = UPPER('Oslo')");
+    });
+
+    it('generates kom filter (case-insensitive)', () => {
+      const sql = compile('HAS fiber IN kom = "Lillesand" COUNT hus', options);
+      expect(sql).toContain("UPPER(komnavn) = UPPER('Lillesand')");
     });
   });
 

@@ -156,6 +156,10 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
         }
 
         if (typeof value === 'string') {
+          // Case-insensitive matching for fylke og kommune
+          if (filter.field === 'fylke' || filter.field === 'kom') {
+            return `UPPER(${sqlField}) ${filter.op} UPPER('${value}')`;
+          }
           return `${sqlField} ${filter.op} '${value}'`;
         }
         return `${sqlField} ${filter.op} ${value}`;
@@ -468,6 +472,10 @@ function buildPopulationWhere(inClause: InClause | null): string {
       }
 
       if (typeof value === 'string') {
+        // Case-insensitive matching for fylke og kommune
+        if (filter.field === 'fylke' || filter.field === 'kom') {
+          return `UPPER(${sqlField}) ${filter.op} UPPER('${value}')`;
+        }
         return `${sqlField} ${filter.op} '${value}'`;
       }
       return `${sqlField} ${filter.op} ${value}`;
