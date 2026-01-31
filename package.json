@@ -1,7 +1,7 @@
 {
-  "name": "span-dsl",
+  "name": "span-query",
   "version": "0.1.0",
-  "description": "Domain-specific query language for Norwegian telecommunications coverage data",
+  "description": "Query language for Norwegian telecommunications coverage data",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

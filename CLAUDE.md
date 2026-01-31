@@ -4,21 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Span** is a domain-specific query language (DSL) for analyzing Norwegian telecommunications coverage data. The DSL is fully implemented with parser, lexer, and SQL code generator.
+**Span** is a query language for analyzing Norwegian telecommunications coverage data. The language is fully implemented with parser, lexer, and SQL code generator.
 
-The DSL translates natural-language-like queries into SQL for DuckDB execution against parquet files containing address-level coverage data.
+Span Query translates natural-language-like queries into SQL for DuckDB execution against parquet files containing address-level coverage data.
 
 ## Repository Structure
 
 ```
 span/
-├── src/                # DSL implementation
+├── src/                # Query language implementation
 │   ├── lexer/          # Tokenizer
 │   ├── parser/         # AST parser
 │   └── codegen/        # SQL generator
 ├── tests/              # Vitest tests
-├── DSL.md              # Complete language specification with EBNF grammar
-├── DSL-doc.md          # Norwegian user documentation
+├── QUERY.md            # Complete language specification with EBNF grammar
+├── QUERY-doc.md        # Norwegian user documentation
 ├── FILEORG.md          # Data transformation logic and Azure architecture
 ├── data/               # Parquet data files
 │   ├── span_adr.parquet    # Address data (all years)
@@ -29,7 +29,7 @@ span/
     └── DEKNING.md      # Historical coverage data documentation
 ```
 
-## Span DSL Syntax
+## Span Query Syntax
 
 Basic query structure:
 ```
@@ -80,7 +80,7 @@ Server-side DuckDB in Azure Container App, not browser-side. The planned stack:
 
 ## SQL Generation Pattern
 
-The DSL compiles to this SQL template:
+Span Query compiles to this SQL template:
 ```sql
 WITH population AS (
   SELECT {grouping} AS gruppe, SUM({metric}) AS total

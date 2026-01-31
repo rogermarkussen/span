@@ -136,8 +136,8 @@ Gir år som kolonner: `gruppe | 2022 | 2023 | 2024`
 
 ## Dokumentasjon
 
-- [DSL-doc.md](DSL-doc.md) – Komplett brukerdokumentasjon (norsk)
-- [DSL.md](DSL.md) – Språkspesifikasjon med EBNF-grammatikk
+- [QUERY-doc.md](QUERY-doc.md) – Komplett brukerdokumentasjon (norsk)
+- [QUERY.md](QUERY.md) – Språkspesifikasjon med EBNF-grammatikk
 - [FILEORG.md](FILEORG.md) – Datastruktur og Azure-arkitektur
 - [reference/DATA_DICT.md](reference/DATA_DICT.md) – Kolonnedefinisjoner for parquet-filer
 

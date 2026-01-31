@@ -1,5 +1,5 @@
 -- Span Data Transformation Script
--- Transformerer rådata til optimaliserte parquet-filer for Span DSL
+-- Transformerer rådata til optimaliserte parquet-filer for Span Query
 -- Kjør med: duckdb < scripts/transform.sql
 
 -- =============================================================================
