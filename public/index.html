@@ -283,7 +283,7 @@
             const td = document.createElement('td');
             const value = row[col];
             td.textContent = formatValue(value);
-            if (typeof value === 'number') {
+            if (isNumeric(value)) {
               td.classList.add('number');
             }
             tr.appendChild(td);
@@ -304,14 +304,33 @@
       }
     }
 
+    function isNumeric(value) {
+      if (typeof value === 'number') return !isNaN(value);
+      if (typeof value === 'string') return !isNaN(value) && value.trim() !== '';
+      return false;
+    }
+
     function formatValue(value) {
       if (value === null || value === undefined) return '';
-      if (typeof value === 'number') {
-        // Alltid vis 1 desimal for andeler/prosenter
-        return value.toLocaleString('nb-NO', {
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1
-        });
+
+      // Konverter til tall hvis det er en numerisk streng
+      let numValue = value;
+      if (typeof value === 'string' && !isNaN(value) && value.trim() !== '') {
+        numValue = Number(value);
+      }
+
+      if (typeof numValue === 'number' && !isNaN(numValue)) {
+        // Sjekk om det er et heltall eller desimaltall
+        if (Number.isInteger(numValue)) {
+          // Heltall: vis med tusenskilletegn (mellomrom)
+          return numValue.toLocaleString('nb-NO');
+        } else {
+          // Desimaltall (andeler/prosenter): vis med 1 desimal
+          return numValue.toLocaleString('nb-NO', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+          });
+        }
       }
       return String(value);
     }
