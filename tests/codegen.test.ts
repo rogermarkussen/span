@@ -447,5 +447,21 @@ describe('SQL Generator', () => {
         compile('HAS fiber IN business COUNT hus FOR 2024', {});
       }).toThrow('Filters "private" and "business" can only be used with COUNT subscriptions');
     });
+
+    it('includes national total for subscriptions BY fylke', () => {
+      const sql = compile('HAS fiber COUNT subscriptions BY fylke FOR 2024', {});
+
+      expect(sql).toContain('UNION ALL');
+      expect(sql).toContain("'Norge' AS gruppe");
+      expect(sql).toContain('SUM(total)');
+      expect(sql).toContain("CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END");
+    });
+
+    it('does not add national total for subscriptions BY kom', () => {
+      const sql = compile('HAS fiber COUNT subscriptions BY kom FOR 2024', {});
+
+      expect(sql).not.toContain('UNION ALL');
+      expect(sql).not.toContain("'Norge' AS gruppe");
+    });
   });
 });

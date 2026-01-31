@@ -183,13 +183,35 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
   const yearColumn = years.length > 1 ? ', aar' : '';
   const groupByYear = years.length > 1 ? ', aar' : '';
 
-  const sql = `
+  // Check if we need national total (BY fylke)
+  const needsNationalTotal = query.by === 'fylke';
+
+  let sql: string;
+
+  if (needsNationalTotal) {
+    // Wrap in CTE and add national total with UNION ALL
+    sql = `
+WITH by_fylke AS (
+  SELECT ${groupExpr} AS gruppe${yearColumn}${selectCols}
+  FROM ${abTable}
+  ${whereClause}
+  GROUP BY ${groupExpr}${groupByYear}
+)
+SELECT * FROM by_fylke
+UNION ALL
+SELECT 'Norge' AS gruppe${yearColumn.replace(', aar', ', aar')}${selectCols.replace('COUNT(*)', 'SUM(total)')}
+FROM by_fylke${years.length > 1 ? ' GROUP BY aar' : ''}
+ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, ${query.sort.field === 'count' ? 'total' : 'gruppe'} ${query.sort.dir}
+${limit}`.trim();
+  } else {
+    sql = `
 SELECT ${groupExpr} AS gruppe${yearColumn}${selectCols}
 FROM ${abTable}
 ${whereClause}
 GROUP BY ${groupExpr}${groupByYear}
 ${orderBy}
 ${limit}`.trim();
+  }
 
   return sql;
 }
