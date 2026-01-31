@@ -240,20 +240,22 @@ coverage AS (
   if (needsNationalTotal) {
     // For the outer query, we need to remove table prefix from ORDER BY
     const outerOrderBy = orderBy.replace('p.gruppe', 'gruppe').replace('ORDER BY ', '');
+    // by_county CTE always needs covered and total for national aggregation
+    const byCountyCols = ', COALESCE(c.covered, 0) AS covered, p.total';
     // Wrap in by_county CTE, then wrap UNION ALL in with_national CTE for proper ORDER BY
     sql += `,
 by_county AS (
-  SELECT p.gruppe${pYearColumn}${selectCols}
+  SELECT p.gruppe${pYearColumn}${byCountyCols}
   FROM population p
   LEFT JOIN coverage c ON p.gruppe = c.gruppe${yearJoin}
 ),
 with_national AS (
   SELECT * FROM by_county
   UNION ALL
-  SELECT 'Norge' AS gruppe${pYearColumn.replace('p.aar', 'aar')}${buildNationalSelectColumns(query.show)}
+  SELECT 'Norge' AS gruppe${pYearColumn.replace('p.aar', 'aar')}, SUM(covered) AS covered, SUM(total) AS total
   FROM by_county${years.length > 1 ? ' GROUP BY aar' : ''}
 )
-SELECT * FROM with_national
+SELECT gruppe${pYearColumn.replace('p.aar', 'aar')}${buildFinalSelectColumns(query.show)} FROM with_national
 ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, ${outerOrderBy}
 ${limit}`.trim();
   } else {
@@ -276,6 +278,17 @@ function buildNationalSelectColumns(show: 'count' | 'andel' | 'begge'): string {
       return ', ROUND(100.0 * SUM(covered) / SUM(total), 1) AS percent';
     case 'begge':
       return ', SUM(covered) AS covered, SUM(total) AS total, ROUND(100.0 * SUM(covered) / SUM(total), 1) AS percent';
+  }
+}
+
+function buildFinalSelectColumns(show: 'count' | 'andel' | 'begge'): string {
+  switch (show) {
+    case 'count':
+      return ', covered, total';
+    case 'andel':
+      return ', ROUND(100.0 * covered / total, 1) AS percent';
+    case 'begge':
+      return ', covered, total, ROUND(100.0 * covered / total, 1) AS percent';
   }
 }
 

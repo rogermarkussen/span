@@ -35,10 +35,11 @@ describe('SQL Generator', () => {
     it('calculates national total correctly for SHOW begge', () => {
       const sql = compile('HAS fiber COUNT hus BY fylke SHOW begge', options);
 
-      // Should aggregate from by_county CTE
+      // Should aggregate from by_county CTE for national total
       expect(sql).toContain('SUM(covered) AS covered');
       expect(sql).toContain('SUM(total) AS total');
-      expect(sql).toContain('ROUND(100.0 * SUM(covered) / SUM(total), 1) AS percent');
+      // Percent is calculated in final SELECT
+      expect(sql).toContain('ROUND(100.0 * covered / total, 1) AS percent');
     });
 
     it('does not add national total for other groupings', () => {
