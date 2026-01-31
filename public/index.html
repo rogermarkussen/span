@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Span DSL</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin: 0 0 1.5rem;
+      color: #333;
+    }
+
+    .query-section {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+      font-size: 14px;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+
+    .button-row {
+      margin-top: 1rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    button:hover {
+      background: #0052a3;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .hint {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .error {
+      background: #fee;
+      border: 1px solid #fcc;
+      color: #c00;
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+
+    .sql-section {
+      margin-bottom: 1rem;
+    }
+
+    .sql-toggle {
+      background: none;
+      border: none;
+      color: #0066cc;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .sql-toggle:hover {
+      color: #0052a3;
+    }
+
+    .sql-content {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      background: #f8f8f8;
+      font-weight: 600;
+      color: #333;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: #fafafa;
+    }
+
+    td.number {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 2rem;
+      color: #666;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Span DSL</h1>
+
+  <div class="query-section">
+    <textarea id="query" placeholder="HAS fiber COUNT homes BY county FOR 2024"></textarea>
+    <div class="button-row">
+      <button id="run">Kjor</button>
+      <span class="hint">Ctrl+Enter for a kjore</span>
+    </div>
+  </div>
+
+  <div id="error" class="error hidden"></div>
+
+  <div id="sql-section" class="sql-section hidden">
+    <button class="sql-toggle" id="sql-toggle">Vis SQL</button>
+    <div id="sql-content" class="sql-content hidden"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    const queryEl = document.getElementById('query');
+    const runBtn = document.getElementById('run');
+    const errorEl = document.getElementById('error');
+    const sqlSection = document.getElementById('sql-section');
+    const sqlToggle = document.getElementById('sql-toggle');
+    const sqlContent = document.getElementById('sql-content');
+    const resultsEl = document.getElementById('results');
+
+    let sqlExpanded = false;
+
+    sqlToggle.addEventListener('click', () => {
+      sqlExpanded = !sqlExpanded;
+      sqlContent.classList.toggle('hidden', !sqlExpanded);
+      sqlToggle.textContent = sqlExpanded ? 'Skjul SQL' : 'Vis SQL';
+    });
+
+    async function runQuery() {
+      const query = queryEl.value.trim();
+      if (!query) return;
+
+      errorEl.classList.add('hidden');
+      sqlSection.classList.add('hidden');
+      resultsEl.innerHTML = '<div class="loading">Kjorer sporring...</div>';
+      runBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          errorEl.textContent = data.error;
+          errorEl.classList.remove('hidden');
+          resultsEl.innerHTML = '';
+          return;
+        }
+
+        // Show SQL
+        sqlContent.textContent = data.sql;
+        sqlSection.classList.remove('hidden');
+
+        // Show results
+        if (!data.rows || data.rows.length === 0) {
+          resultsEl.innerHTML = '<div class="no-results">Ingen resultater</div>';
+          return;
+        }
+
+        const table = document.createElement('table');
+
+        // Header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        for (const col of data.columns) {
+          const th = document.createElement('th');
+          th.textContent = col;
+          headerRow.appendChild(th);
+        }
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        // Body
+        const tbody = document.createElement('tbody');
+        for (const row of data.rows) {
+          const tr = document.createElement('tr');
+          for (const col of data.columns) {
+            const td = document.createElement('td');
+            const value = row[col];
+            td.textContent = formatValue(value);
+            if (typeof value === 'number') {
+              td.classList.add('number');
+            }
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        resultsEl.innerHTML = '';
+        resultsEl.appendChild(table);
+
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+        resultsEl.innerHTML = '';
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    function formatValue(value) {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'number') {
+        if (Number.isInteger(value)) {
+          return value.toLocaleString('nb-NO');
+        }
+        return value.toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      }
+      return String(value);
+    }
+
+    runBtn.addEventListener('click', runQuery);
+
+    queryEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        runQuery();
+      }
+    });
+  </script>
+</body>
+</html>
