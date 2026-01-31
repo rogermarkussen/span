@@ -28,6 +28,24 @@ export interface SqlOptions {
 // Available years in the system
 const AVAILABLE_YEARS = [2022, 2023, 2024];
 
+// CTE for mapping historical county names to 2024 county names
+// Uses data/2022/adr.parquet which has both fylke (historical) and fylke24 (2024 name)
+// For municipalities with addresses in multiple 2024-fylker (e.g., Asker in both Akershus and Buskerud),
+// we pick the fylke24 with the most addresses to avoid row duplication during JOIN
+function getFylkeMappingCte(dataPath: string): string {
+  return `fylke_mapping AS (
+  SELECT komnavn, gammelt_fylke, fylke24
+  FROM (
+    SELECT komnavn, fylke AS gammelt_fylke, fylke24,
+      ROW_NUMBER() OVER (PARTITION BY komnavn, fylke ORDER BY COUNT(*) DESC) as rn
+    FROM '${dataPath}/2022/adr.parquet'
+    WHERE fylke24 IS NOT NULL
+    GROUP BY komnavn, fylke, fylke24
+  )
+  WHERE rn = 1
+)`;
+}
+
 // Resolve years from ForClause
 function resolveYears(forClause: ForClause | null, options: SqlOptions): number[] {
   if (!forClause) {
@@ -123,30 +141,41 @@ export function generateSql(query: SpanQuery, options: SqlOptions): string {
 }
 
 function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: string): string {
+  // Multi-year with grouping: use pivot format
+  if (years.length > 1 && query.by !== 'total') {
+    return generateSubscriptionsPivotSql(query, years, dataPath);
+  }
+
   const abTable = `'${dataPath}/span_ab.parquet'`;
-  const groupExpr = getGroupingExpr(query.by);
+  const adrTable = `'${dataPath}/span_adr.parquet'`;
+  const isByFylke = query.by === 'fylke';
 
   // Build WHERE conditions
   const conditions: string[] = [];
 
   // Year filter
   if (years.length === 1) {
-    conditions.push(`aar = ${years[0]}`);
+    conditions.push(`${isByFylke ? 'ab.' : ''}aar = ${years[0]}`);
   } else {
-    conditions.push(`aar IN (${years.join(', ')})`);
+    conditions.push(`${isByFylke ? 'ab.' : ''}aar IN (${years.join(', ')})`);
   }
 
   // HAS clause conditions (tech, speed, etc.)
   const coverageCondition = buildCoverageCondition(query.has);
   if (coverageCondition) {
-    conditions.push(coverageCondition);
+    if (isByFylke) {
+      conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
+    } else {
+      conditions.push(coverageCondition);
+    }
   }
 
   // IN clause conditions (private, business, county, etc.)
   if (query.in && query.in.filters.length > 0) {
     const inConditions = query.in.filters.map(filter => {
       if (filter.type === 'population') {
-        return POPULATION_MAPPINGS[filter.flag];
+        const mapped = POPULATION_MAPPINGS[filter.flag];
+        return isByFylke ? mapped.replace(/\b(privat)\b/g, 'ab.$1') : mapped;
       } else {
         const sqlField = FIELD_MAPPINGS[filter.field] || filter.field;
         let value = filter.value;
@@ -155,14 +184,15 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
           value = convertSpeed(value);
         }
 
+        const prefix = isByFylke ? 'ab.' : '';
         if (typeof value === 'string') {
           // Case-insensitive matching for fylke og kommune
           if (filter.field === 'fylke' || filter.field === 'kom') {
-            return `UPPER(${sqlField}) ${filter.op} UPPER('${value}')`;
+            return `UPPER(${prefix}${sqlField}) ${filter.op} UPPER('${value}')`;
           }
-          return `${sqlField} ${filter.op} '${value}'`;
+          return `${prefix}${sqlField} ${filter.op} '${value}'`;
         }
-        return `${sqlField} ${filter.op} ${value}`;
+        return `${prefix}${sqlField} ${filter.op} ${value}`;
       }
     });
     conditions.push(...inConditions);
@@ -183,19 +213,23 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
   const yearColumn = years.length > 1 ? ', aar' : '';
   const groupByYear = years.length > 1 ? ', aar' : '';
 
-  // Check if we need national total (BY fylke)
-  const needsNationalTotal = query.by === 'fylke';
-
   let sql: string;
 
-  if (needsNationalTotal) {
+  if (isByFylke) {
+    // Use fylke mapping CTE to normalize historical county names to 2024 names
+    // Two-step approach: 1) JOIN span_adr for ~81% of rows, 2) fallback to fylke_mapping, 3) fallback to ab.fylke
+    const mappingCte = getFylkeMappingCte(dataPath);
+
     // Wrap in CTEs and add national total with UNION ALL
     sql = `
-WITH by_fylke AS (
-  SELECT ${groupExpr} AS gruppe${yearColumn}${selectCols}
-  FROM ${abTable}
+WITH ${mappingCte},
+by_fylke AS (
+  SELECT COALESCE(adr.fylke, m.fylke24, ab.fylke) AS gruppe${yearColumn}${selectCols}
+  FROM ${abTable} ab
+  LEFT JOIN ${adrTable} adr ON ab.adrid = adr.adrid AND ab.aar = adr.aar
+  LEFT JOIN fylke_mapping m ON ab.komnavn = m.komnavn AND ab.fylke = m.gammelt_fylke
   ${whereClause}
-  GROUP BY ${groupExpr}${groupByYear}
+  GROUP BY COALESCE(adr.fylke, m.fylke24, ab.fylke)${groupByYear}
 ),
 with_national AS (
   SELECT * FROM by_fylke
@@ -207,12 +241,119 @@ SELECT * FROM with_national
 ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, ${query.sort.field === 'count' ? 'total' : 'gruppe'} ${query.sort.dir}
 ${limit}`.trim();
   } else {
+    const groupExpr = getGroupingExpr(query.by);
     sql = `
 SELECT ${groupExpr} AS gruppe${yearColumn}${selectCols}
 FROM ${abTable}
 ${whereClause}
 GROUP BY ${groupExpr}${groupByYear}
 ${orderBy}
+${limit}`.trim();
+  }
+
+  return sql;
+}
+
+function generateSubscriptionsPivotSql(query: SpanQuery, years: number[], dataPath: string): string {
+  const abTable = `'${dataPath}/span_ab.parquet'`;
+  const adrTable = `'${dataPath}/span_adr.parquet'`;
+
+  // Build WHERE conditions (without year - that's handled in pivot)
+  const conditions: string[] = [];
+
+  // Year filter for all years
+  conditions.push(`ab.aar IN (${years.join(', ')})`);
+
+  // HAS clause conditions (tech, speed, etc.)
+  const coverageCondition = buildCoverageCondition(query.has);
+  if (coverageCondition) {
+    // Add ab. prefix to coverage condition fields
+    conditions.push(coverageCondition.replace(/\b(tek|ned_mbps|opp_mbps)\b/g, 'ab.$1'));
+  }
+
+  // IN clause conditions (private, business, county, etc.)
+  if (query.in && query.in.filters.length > 0) {
+    const inConditions = query.in.filters.map(filter => {
+      if (filter.type === 'population') {
+        // Add ab. prefix to population mapping
+        return POPULATION_MAPPINGS[filter.flag].replace(/\b(privat)\b/g, 'ab.$1');
+      } else {
+        const sqlField = FIELD_MAPPINGS[filter.field] || filter.field;
+        let value = filter.value;
+
+        if (isSpeedField(filter.field) && typeof value === 'number') {
+          value = convertSpeed(value);
+        }
+
+        if (typeof value === 'string') {
+          // Case-insensitive matching for fylke og kommune
+          if (filter.field === 'fylke' || filter.field === 'kom') {
+            return `UPPER(ab.${sqlField}) ${filter.op} UPPER('${value}')`;
+          }
+          return `ab.${sqlField} ${filter.op} '${value}'`;
+        }
+        return `ab.${sqlField} ${filter.op} ${value}`;
+      }
+    });
+    conditions.push(...inConditions);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Generate CASE WHEN for each year (pivot columns showing count)
+  const yearColumns = years.map(year =>
+    `SUM(CASE WHEN ab.aar = ${year} THEN 1 ELSE 0 END) AS "${year}"`
+  ).join(',\n    ');
+
+  // Build LIMIT
+  const limit = query.top ? `LIMIT ${query.top}` : '';
+
+  // Check if we need fylke mapping (BY fylke)
+  const isByFylke = query.by === 'fylke';
+
+  let sql: string;
+
+  if (isByFylke) {
+    // Use fylke mapping CTE to normalize historical county names to 2024 names
+    // Two-step approach: 1) JOIN span_adr for ~81% of rows, 2) fallback to fylke_mapping, 3) fallback to ab.fylke
+    const mappingCte = getFylkeMappingCte(dataPath);
+
+    // Generate year columns for national total (sum of sums)
+    const yearColumnsNational = years.map(year => `SUM("${year}") AS "${year}"`).join(', ');
+
+    sql = `
+WITH ${mappingCte},
+by_group AS (
+  SELECT COALESCE(adr.fylke, m.fylke24, ab.fylke) AS gruppe,
+    ${yearColumns}
+  FROM ${abTable} ab
+  LEFT JOIN ${adrTable} adr ON ab.adrid = adr.adrid AND ab.aar = adr.aar
+  LEFT JOIN fylke_mapping m ON ab.komnavn = m.komnavn AND ab.fylke = m.gammelt_fylke
+  ${whereClause}
+  GROUP BY COALESCE(adr.fylke, m.fylke24, ab.fylke)
+),
+with_national AS (
+  SELECT * FROM by_group
+  UNION ALL
+  SELECT 'Norge' AS gruppe, ${yearColumnsNational}
+  FROM by_group
+)
+SELECT * FROM with_national
+ORDER BY CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END, gruppe ASC
+${limit}`.trim();
+  } else {
+    const groupExpr = getGroupingExpr(query.by);
+    // For non-fylke groupings, use simpler query without ab. prefix
+    const simpleYearColumns = years.map(year =>
+      `SUM(CASE WHEN aar = ${year} THEN 1 ELSE 0 END) AS "${year}"`
+    ).join(',\n    ');
+    sql = `
+SELECT ${groupExpr} AS gruppe,
+    ${simpleYearColumns}
+FROM ${abTable}
+${whereClause.replace(/\bab\./g, '')}
+GROUP BY ${groupExpr}
+ORDER BY gruppe ASC
 ${limit}`.trim();
   }
 

@@ -396,8 +396,12 @@ describe('SQL Generator', () => {
     it('generates SQL for subscription count by fylke', () => {
       const sql = compile('HAS fiber COUNT ab BY fylke FOR 2024', {});
 
-      expect(sql).toContain('fylke AS gruppe');
-      expect(sql).toContain('GROUP BY fylke');
+      // Uses fylke mapping CTE to normalize historical county names to 2024 names
+      // Two-step approach: 1) JOIN span_adr for address-level fylke, 2) fallback to fylke_mapping, 3) fallback to ab.fylke
+      expect(sql).toContain('fylke_mapping');
+      expect(sql).toContain('span_adr.parquet');
+      expect(sql).toContain('COALESCE(adr.fylke, m.fylke24, ab.fylke) AS gruppe');
+      expect(sql).toContain('GROUP BY COALESCE(adr.fylke, m.fylke24, ab.fylke)');
       expect(sql).toContain('COUNT(*)');
     });
 
