@@ -270,24 +270,44 @@ describe('Parser', () => {
 
     it('parses single year', () => {
       const ast = parseQuery('HAS fiber COUNT hus FOR 2024');
-      expect(ast.for).toEqual([2024]);
+      expect(ast.for).toEqual({ type: 'list', years: [2024] });
     });
 
     it('parses multiple years', () => {
       const ast = parseQuery('HAS fiber COUNT hus FOR (2023, 2024)');
-      expect(ast.for).toEqual([2023, 2024]);
+      expect(ast.for).toEqual({ type: 'list', years: [2023, 2024] });
     });
 
     it('parses FOR with other clauses', () => {
       const ast = parseQuery('HAS fiber COUNT hus BY fylke SORT andel DESC TOP 10 FOR 2024');
-      expect(ast.for).toEqual([2024]);
+      expect(ast.for).toEqual({ type: 'list', years: [2024] });
       expect(ast.by).toBe('fylke');
       expect(ast.top).toBe(10);
     });
 
     it('parses FOR with three years', () => {
       const ast = parseQuery('HAS fiber COUNT hus FOR (2022, 2023, 2024)');
-      expect(ast.for).toEqual([2022, 2023, 2024]);
+      expect(ast.for).toEqual({ type: 'list', years: [2022, 2023, 2024] });
+    });
+
+    it('parses FOR ar >= 2022', () => {
+      const ast = parseQuery('HAS fiber COUNT hus FOR ar >= 2022');
+      expect(ast.for).toEqual({ type: 'comparison', op: '>=', value: 2022 });
+    });
+
+    it('parses FOR ar = 2024', () => {
+      const ast = parseQuery('HAS fiber COUNT hus FOR ar = 2024');
+      expect(ast.for).toEqual({ type: 'comparison', op: '=', value: 2024 });
+    });
+
+    it('parses FOR ar != 2023', () => {
+      const ast = parseQuery('HAS fiber COUNT hus FOR ar != 2023');
+      expect(ast.for).toEqual({ type: 'comparison', op: '!=', value: 2023 });
+    });
+
+    it('parses FOR ar < 2024', () => {
+      const ast = parseQuery('HAS fiber COUNT hus FOR ar < 2024');
+      expect(ast.for).toEqual({ type: 'comparison', op: '<', value: 2024 });
     });
   });
 });

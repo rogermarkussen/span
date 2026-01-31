@@ -298,6 +298,86 @@ describe('SQL Generator', () => {
     });
   });
 
+  describe('FOR with operators', () => {
+    it('resolves FOR ar >= 2022 to all years from 2022', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar >= 2022', {});
+
+      // Should generate pivot SQL with all three years
+      expect(sql).toContain('AS "2022"');
+      expect(sql).toContain('AS "2023"');
+      expect(sql).toContain('AS "2024"');
+    });
+
+    it('resolves FOR ar = 2024 to single year', () => {
+      const sql = compile('HAS fiber COUNT hus FOR ar = 2024', {});
+
+      expect(sql).toContain('aar = 2024');
+      expect(sql).not.toContain('AS "2022"');
+    });
+
+    it('resolves FOR ar != 2023 to 2022 and 2024', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar != 2023', {});
+
+      expect(sql).toContain('AS "2022"');
+      expect(sql).toContain('AS "2024"');
+      expect(sql).not.toContain('AS "2023"');
+    });
+
+    it('resolves FOR ar > 2022 to 2023 and 2024', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar > 2022', {});
+
+      expect(sql).not.toContain('AS "2022"');
+      expect(sql).toContain('AS "2023"');
+      expect(sql).toContain('AS "2024"');
+    });
+
+    it('resolves FOR ar <= 2023 to 2022 and 2023', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar <= 2023', {});
+
+      expect(sql).toContain('AS "2022"');
+      expect(sql).toContain('AS "2023"');
+      expect(sql).not.toContain('AS "2024"');
+    });
+  });
+
+  describe('pivot SQL for multi-year', () => {
+    it('generates pivot SQL with years as columns', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR (2022, 2023, 2024)', {});
+
+      // Should have year columns
+      expect(sql).toContain('AS "2022"');
+      expect(sql).toContain('AS "2023"');
+      expect(sql).toContain('AS "2024"');
+      // Should use CASE WHEN for pivot
+      expect(sql).toContain('CASE WHEN aar = 2022');
+      expect(sql).toContain('CASE WHEN aar = 2023');
+      expect(sql).toContain('CASE WHEN aar = 2024');
+      // Should calculate percent
+      expect(sql).toContain('ROUND(100.0');
+    });
+
+    it('generates pivot SQL with national total for BY fylke', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke FOR ar >= 2022', {});
+
+      expect(sql).toContain('with_national');
+      expect(sql).toContain("'Norge' AS gruppe");
+      expect(sql).toContain("CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END");
+    });
+
+    it('generates pivot SQL without national total for BY kom', () => {
+      const sql = compile('HAS fiber COUNT hus BY kom FOR (2023, 2024)', {});
+
+      expect(sql).not.toContain('with_national');
+      expect(sql).not.toContain("'Norge' AS gruppe");
+    });
+
+    it('applies population filter in pivot SQL', () => {
+      const sql = compile('HAS fiber IN tett COUNT hus BY fylke FOR ar >= 2022', {});
+
+      expect(sql).toContain('ertett = true');
+    });
+  });
+
   describe('COUNT subscriptions', () => {
     it('generates SQL for basic subscription count', () => {
       const sql = compile('HAS fiber COUNT subscriptions FOR 2024', {});

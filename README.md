@@ -32,6 +32,7 @@ BY <gruppering>              -- Valgfri: Hvordan gruppere?
 SHOW <format>                -- Valgfri: Hva vises?
 SORT <felt> <retning>        -- Valgfri: Sortering
 TOP <n>                      -- Valgfri: Maks rader
+FOR <år>                     -- Valgfri: Årsfilter
 ```
 
 ## Dekningsbetingelser (HAS)
@@ -118,6 +119,15 @@ COUNT hus
 HAS nedhast < 100
 COUNT hus
 ```
+
+### Tidsutvikling (pivot)
+```
+HAS fiber
+COUNT hus
+BY fylke
+FOR ar >= 2022
+```
+Gir år som kolonner: `gruppe | 2022 | 2023 | 2024`
 
 ## Dokumentasjon
 

@@ -246,7 +246,9 @@ TOP 5     -- Vis kun 5 rader
 
 ## Årsfilter (FOR)
 
-Spesifiser hvilket år eller hvilke år som skal brukes:
+Spesifiser hvilket år eller hvilke år som skal brukes.
+
+### Eksplisitt liste
 
 ```
 FOR 2024                -- Enkelt år
@@ -254,13 +256,46 @@ FOR (2023, 2024)        -- Flere år
 FOR (2022, 2023, 2024)  -- Tre år
 ```
 
-Når du bruker flere år, får resultatet en ekstra `aar`-kolonne.
+### Med sammenligning
+
+Du kan også bruke operatorer for å velge år dynamisk:
+
+```
+FOR ar >= 2022         -- Alle år fra og med 2022
+FOR ar = 2024          -- Samme som FOR 2024
+FOR ar != 2023         -- Alle unntatt 2023
+FOR ar > 2022          -- Alle etter 2022
+FOR ar <= 2023         -- Alle til og med 2023
+```
+
+Tilgjengelige år i systemet: 2022, 2023, 2024
+
+### Pivot-output (flere år)
+
+Når du kombinerer flere år med gruppering (BY), vises årene som kolonner med prosentandel:
+
+**Spørring:**
+```
+HAS fiber COUNT hus BY fylke FOR ar >= 2022
+```
+
+**Resultat:**
+| gruppe | 2022 | 2023 | 2024 |
+|--------|------|------|------|
+| Agder | 72.3 | 75.1 | 78.9 |
+| Akershus | 81.2 | 83.4 | 85.7 |
+| Oslo | 85.5 | 87.2 | 89.0 |
+| Norge | 75.0 | 77.5 | 80.1 |
+| ... | ... | ... | ... |
+
+Dette gjør det enkelt å sammenligne utvikling over tid.
 
 **Eksempler:**
 ```
 HAS fiber COUNT hus FOR 2024              -- Data fra 2024
 HAS fiber COUNT hus BY fylke FOR 2024     -- Per fylke i 2024
-HAS fiber COUNT hus FOR (2023, 2024)      -- Sammenlign 2023 og 2024
+HAS fiber COUNT hus BY fylke FOR ar >= 2022  -- Pivot med alle år
+HAS 5g COUNT hus BY kom FOR (2023, 2024)  -- 5G-utvikling per kommune
 ```
 
 > **Tips:** Når `FOR` utelates, brukes årstallet fra API-innstillingene.
@@ -511,7 +546,9 @@ SORT <felt> <retning>        -- Valgfri: Sortering
 TOP <n>                      -- Valgfri: Maks rader
 
 FOR <år>                     -- Valgfri: Årsfilter
-  2024 | (2023, 2024)        -- Enkelt år eller liste
+  2024                       -- Enkelt år
+  (2023, 2024)               -- Liste med år
+  ar >= 2022                -- Sammenligning (>=, <=, >, <, =, !=)
 ```
 
 ---

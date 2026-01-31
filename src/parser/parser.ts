@@ -25,7 +25,8 @@ import {
   SortDir,
   ComparisonOp,
   CoverageFlag,
-  PopulationFlag
+  PopulationFlag,
+  ForClause
 } from './ast.js';
 
 export class Parser {
@@ -399,9 +400,26 @@ export class Parser {
     return parseInt(this.advance().value, 10);
   }
 
-  private parseForClause(): number[] | null {
+  private parseForClause(): ForClause | null {
     if (!this.match('KEYWORD', 'FOR')) {
       return null;
+    }
+
+    // Check for operator syntax: FOR ar >= 2022
+    if (this.check('IDENTIFIER') && this.current().value.toLowerCase() === 'ar') {
+      this.advance(); // consume 'ar'
+      const op = this.expect('OPERATOR').value as ComparisonOp;
+      if (!this.check('NUMBER')) {
+        const token = this.current();
+        throw new ParseError(
+          `Expected year number after operator`,
+          token.position,
+          token.line,
+          token.column
+        );
+      }
+      const value = parseInt(this.advance().value, 10);
+      return { type: 'comparison', op, value };
     }
 
     const years: number[] = [];
@@ -449,7 +467,7 @@ export class Parser {
       years.push(parseInt(this.advance().value, 10));
     }
 
-    return years;
+    return { type: 'list', years };
   }
 }
 

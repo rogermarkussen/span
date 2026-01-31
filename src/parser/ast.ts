@@ -58,6 +58,11 @@ export interface SortClause {
   dir: SortDir;
 }
 
+// FOR clause: either explicit list or comparison with 'ar'
+export type ForClause =
+  | { type: 'list'; years: number[] }
+  | { type: 'comparison'; op: ComparisonOp; value: number };
+
 export interface SpanQuery {
   has: HasClause;
   in: InClause | null;
@@ -66,5 +71,5 @@ export interface SpanQuery {
   show: Output;
   sort: SortClause;
   top: number | null;
-  for: number[] | null;
+  for: ForClause | null;
 }
