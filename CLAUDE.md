@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Span** is a domain-specific query language (DSL) for analyzing Norwegian telecommunications coverage data. This repository contains specifications, documentation, and parquet data files - no executable implementation code yet.
+**Span** is a domain-specific query language (DSL) for analyzing Norwegian telecommunications coverage data. The DSL is fully implemented with parser, lexer, and SQL code generator.
 
 The DSL translates natural-language-like queries into SQL for DuckDB execution against parquet files containing address-level coverage data.
 
@@ -12,13 +12,18 @@ The DSL translates natural-language-like queries into SQL for DuckDB execution a
 
 ```
 span/
+├── src/                # DSL implementation
+│   ├── lexer/          # Tokenizer
+│   ├── parser/         # AST parser
+│   └── codegen/        # SQL generator
+├── tests/              # Vitest tests
 ├── DSL.md              # Complete language specification with EBNF grammar
 ├── DSL-doc.md          # Norwegian user documentation
 ├── FILEORG.md          # Data transformation logic and Azure architecture
-├── data/               # Parquet data files (2022-2024)
-│   ├── YYYY/           # Yearly directories with adr, fbb, mob, ab files
-│   ├── dekning_tek.parquet   # Historical tech coverage (2013-2024)
-│   └── dekning_hast.parquet  # Historical speed coverage (2010-2024)
+├── data/               # Parquet data files
+│   ├── span_adr.parquet    # Address data (all years)
+│   ├── span_dekning.parquet # Coverage data (all years)
+│   └── span_ab.parquet     # Subscription data (all years)
 └── reference/
     ├── DATA_DICT.md    # Column definitions for all parquet files
     └── DEKNING.md      # Historical coverage data documentation
@@ -28,26 +33,27 @@ span/
 
 Basic query structure:
 ```
-HAS <coverage-conditions>    -- Required: fiber, cable, dsl, 5g, 4g, fwa, speed >= N
-[IN <population-filters>]    -- Optional: county, municipality, urban, rural, type
-COUNT <metric>               -- Required: homes, addresses, buildings, cabins
-[BY <grouping>]              -- Optional: national, county, municipality, postal, urban, provider, tech
-[SHOW <output>]              -- Optional: count, percent, both
-[SORT <field> ASC|DESC]      -- Optional: count, percent, group
+HAS <coverage-conditions>    -- Required: fiber, kabel, dsl, 5g, 4g, ftb, nedhast >= N
+[IN <population-filters>]    -- Optional: fylke, kom, tett, spredt, type, private, business
+COUNT <metric>               -- Required: hus, adr, fritid, ab
+[BY <grouping>]              -- Optional: total, fylke, kom, postnr, tett, tilb, tek
+[SHOW <output>]              -- Optional: count, andel, begge
+[SORT <field> ASC|DESC]      -- Optional: count, andel, group
 [TOP <n>]                    -- Optional: limit rows
+[FOR <year>]                 -- Optional: 2024, (2023, 2024), ar >= 2022
 ```
 
 Quantifiers for overlap queries: `ANY(...)`, `ALL(...)`, `NONE(...)`
 
+**Note:** `COUNT ab` counts subscriptions from `span_ab.parquet`. Filters `private`/`business` are only valid with `COUNT ab`.
+
 ## Data Notes
 
-- **Speed values in parquet files are stored in kbps** (not Mbps). Convert: 100 Mbps = 100000 kbps
-- **Dekningsandel (coverage) values are 0-1**, multiply by 100 for percentage
-- **mob.parquet only exists from 2023** (no mobile coverage data for 2022)
+- **Speed values in span_* files are stored in Mbps** (no conversion needed)
 - **County changes in 2024**: 11 counties split into 15 (Viken→3, Vestfold og Telemark→2, Troms og Finnmark→2)
-- Use adr file from same year as coverage data for correct county mapping
+- All span_* parquet files contain an `aar` column for year filtering
 
-## Key Column Names (abbreviated in parquet)
+## Key Column Names (in span_* parquet files)
 
 | Column | Meaning |
 |--------|---------|
@@ -56,9 +62,13 @@ Quantifiers for overlap queries: `ANY(...)`, `ALL(...)`, `NONE(...)`
 | komnavn | Municipality name |
 | ertett | Boolean: urban (tettsted) vs rural |
 | hus | Household count |
+| fritid | Cabin count |
 | tilb | Provider name |
 | tek | Technology type |
-| ned/opp | Download/upload speed (kbps) |
+| ned_mbps | Download speed (Mbps) |
+| opp_mbps | Upload speed (Mbps) |
+| aar | Year |
+| privat | Boolean: private (true) vs business (false) - only in span_ab |
 
 ## Target Architecture
 
