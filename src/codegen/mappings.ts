@@ -33,8 +33,8 @@ export const GROUPING_MAPPINGS: Record<Grouping, string> = {
 export const POPULATION_MAPPINGS: Record<PopulationFlag, string> = {
   'tett': 'ertett = true',
   'spredt': 'ertett = false',
-  'private': 'privat = true',
-  'business': 'privat = false'
+  'privat': 'privat = true',
+  'bedrift': 'privat = false'
 };
 
 // Field mappings: DSL field → SQL column

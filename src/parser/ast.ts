@@ -1,5 +1,5 @@
 export type CoverageFlag = 'fiber' | 'kabel' | 'dsl' | '5g' | '4g' | 'ftb';
-export type PopulationFlag = 'tett' | 'spredt' | 'private' | 'business';
+export type PopulationFlag = 'tett' | 'spredt' | 'privat' | 'bedrift';
 export type Metric = 'hus' | 'adr' | 'fritid' | 'ab';
 export type Grouping = 'total' | 'fylke' | 'kom' | 'postnr' | 'tett' | 'tilb' | 'tek';
 export type Output = 'count' | 'andel' | 'begge';

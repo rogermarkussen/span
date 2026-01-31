@@ -179,8 +179,8 @@ HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 | `rural` | flag | - | Rural areas only |
 | `type` | string | house, apartment, cabin | Building type |
 | `postal` | string | 0001-9999 | Postal code |
-| `private` | flag | - | Private ab only* |
-| `business` | flag | - | Business ab only* |
+| `privat` | flag | - | Private ab only* |
+| `bedrift` | flag | - | Business ab only* |
 
 \* Only available with `COUNT ab`
 
@@ -191,7 +191,7 @@ IN county = Oslo
 IN urban
 IN type = cabin
 IN county = Rogaland AND urban
-IN private                     -- Only for COUNT ab
+IN privat                      -- Only for COUNT ab
 ```
 
 ---
@@ -211,8 +211,8 @@ IN private                     -- Only for COUNT ab
 `COUNT ab` counts actual ab from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
 
 **Note:** For ab, you can use special filters:
-- `IN private` - Private customer ab only
-- `IN business` - Business ab only
+- `IN privat` - Private customer ab only
+- `IN bedrift` - Business ab only
 
 These filters are **only** available with `COUNT ab`.
 
@@ -448,7 +448,7 @@ Results include a `aar` column for year when multiple years are specified.
 
 ```
 HAS fiber
-IN private
+IN privat
 COUNT ab
 BY county
 FOR 2024
@@ -461,7 +461,7 @@ FOR 2024
 
 ```
 HAS speed >= 100
-IN business
+IN bedrift
 COUNT ab
 BY provider
 SORT count DESC
@@ -490,7 +490,7 @@ coverage_field = "tech" | "speed" | "upload" | "provider"
 
 in_clause   = "IN" population_condition { ("AND" | "OR") population_condition }
 population_condition = ["NOT"] ( population_flag | population_comparison )
-population_flag = "urban" | "rural" | "private" | "business"
+population_flag = "urban" | "rural" | "privat" | "bedrift"
 population_comparison = population_field operator value
 population_field = "county" | "municipality" | "type" | "postal"
 
@@ -528,7 +528,7 @@ for_clause  = "FOR" ( number | "(" number { "," number } ")" )
 const TOKEN_TYPES = {
   KEYWORD: /^(HAS|IN|COUNT|BY|SHOW|SORT|TOP|AND|OR|NOT|ANY|ALL|NONE)$/i,
   COVERAGE_FLAG: /^(fiber|cable|dsl|5g|4g|fwa)$/i,
-  POPULATION_FLAG: /^(urban|rural|private|business)$/i,
+  POPULATION_FLAG: /^(urban|rural|privat|bedrift)$/i,
   COVERAGE_FIELD: /^(tech|speed|upload|provider)$/i,
   POPULATION_FIELD: /^(county|municipality|type|postal)$/i,
   METRIC: /^(homes|addresses|buildings|cabins|ab)$/i,

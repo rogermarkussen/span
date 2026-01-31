@@ -439,8 +439,8 @@ describe('SQL Generator', () => {
       expect(sql).not.toContain('tek =');
     });
 
-    it('generates SQL for COUNT ab IN private without HAS', () => {
-      const sql = compile('IN private COUNT ab FOR 2024', {});
+    it('generates SQL for COUNT ab IN privat without HAS', () => {
+      const sql = compile('IN privat COUNT ab FOR 2024', {});
 
       expect(sql).toContain('privat = true');
       expect(sql).toContain('COUNT(*)');
@@ -477,21 +477,21 @@ describe('SQL Generator', () => {
       expect(sql).toContain('COUNT(*)');
     });
 
-    it('generates SQL for private ab', () => {
-      const sql = compile('HAS fiber IN private COUNT ab FOR 2024', {});
+    it('generates SQL for privat ab', () => {
+      const sql = compile('HAS fiber IN privat COUNT ab FOR 2024', {});
 
       expect(sql).toContain('privat = true');
       expect(sql).toContain("tek = 'fiber'");
     });
 
-    it('generates SQL for business ab', () => {
-      const sql = compile('HAS fiber IN business COUNT ab FOR 2024', {});
+    it('generates SQL for bedrift ab', () => {
+      const sql = compile('HAS fiber IN bedrift COUNT ab FOR 2024', {});
 
       expect(sql).toContain('privat = false');
     });
 
-    it('generates SQL for private ab by tilb', () => {
-      const sql = compile('HAS fiber IN private COUNT ab BY tilb FOR 2024', {});
+    it('generates SQL for privat ab by tilb', () => {
+      const sql = compile('HAS fiber IN privat COUNT ab BY tilb FOR 2024', {});
 
       expect(sql).toContain('tilb AS gruppe');
       expect(sql).toContain('privat = true');
@@ -505,16 +505,16 @@ describe('SQL Generator', () => {
       expect(sql).toContain('GROUP BY');
     });
 
-    it('rejects private/business filter with non-subscription metric', () => {
+    it('rejects privat/bedrift filter with non-subscription metric', () => {
       expect(() => {
-        compile('HAS fiber IN private COUNT hus FOR 2024', {});
-      }).toThrow('Filters "private" and "business" can only be used with COUNT ab');
+        compile('HAS fiber IN privat COUNT hus FOR 2024', {});
+      }).toThrow('Filters "privat" and "bedrift" can only be used with COUNT ab');
     });
 
-    it('rejects business filter with non-subscription metric', () => {
+    it('rejects bedrift filter with non-subscription metric', () => {
       expect(() => {
-        compile('HAS fiber IN business COUNT hus FOR 2024', {});
-      }).toThrow('Filters "private" and "business" can only be used with COUNT ab');
+        compile('HAS fiber IN bedrift COUNT hus FOR 2024', {});
+      }).toThrow('Filters "privat" and "bedrift" can only be used with COUNT ab');
     });
 
     it('includes national total for ab BY fylke', () => {

@@ -96,12 +96,12 @@ function addTablePrefix(condition: string, tableAlias: string): string {
   return condition.replace(/\b(fylke|komnavn|ertett|postnr|hus|fritid|bygninger|privat)\b/g, `${tableAlias}.$1`);
 }
 
-// Check if a filter is subscription-only (private/business)
+// Check if a filter is subscription-only (privat/bedrift)
 function isSubscriptionOnlyFilter(filter: InFilter): boolean {
-  return filter.type === 'population' && (filter.flag === 'private' || filter.flag === 'business');
+  return filter.type === 'population' && (filter.flag === 'privat' || filter.flag === 'bedrift');
 }
 
-// Validate that private/business filters are only used with COUNT ab
+// Validate that privat/bedrift filters are only used with COUNT ab
 function validateFilters(query: SpanQuery): void {
   if (!query.in) return;
 
@@ -109,7 +109,7 @@ function validateFilters(query: SpanQuery): void {
 
   if (hasSubscriptionOnlyFilters && query.count !== 'ab') {
     throw new CodeGenError(
-      'Filters "private" and "business" can only be used with COUNT ab'
+      'Filters "privat" and "bedrift" can only be used with COUNT ab'
     );
   }
 }
@@ -172,7 +172,7 @@ function generateSubscriptionsSql(query: SpanQuery, years: number[], dataPath: s
     }
   }
 
-  // IN clause conditions (private, business, county, etc.)
+  // IN clause conditions (privat, bedrift, county, etc.)
   if (query.in && query.in.filters.length > 0) {
     const inConditions = query.in.filters.map(filter => {
       if (filter.type === 'population') {
@@ -275,7 +275,7 @@ function generateSubscriptionsPivotSql(query: SpanQuery, years: number[], dataPa
     }
   }
 
-  // IN clause conditions (private, business, county, etc.)
+  // IN clause conditions (privat, bedrift, county, etc.)
   if (query.in && query.in.filters.length > 0) {
     const inConditions = query.in.filters.map(filter => {
       if (filter.type === 'population') {
@@ -402,7 +402,7 @@ function generateCoverageSql(query: SpanQuery, years: number[], dataPath: string
     ? `aar = ${years[0]}`
     : `aar IN (${years.join(', ')})`;
 
-  // Build population WHERE clause (without private/business which are subscription-only)
+  // Build population WHERE clause (without privat/bedrift which are subscription-only)
   const populationWhere = buildPopulationWhere(query.in);
 
   // Build ORDER BY
@@ -755,7 +755,7 @@ function buildPopulationWhere(inClause: InClause | null): string {
     return '';
   }
 
-  // Filter out subscription-only filters (private/business)
+  // Filter out subscription-only filters (privat/bedrift)
   const coverageFilters = inClause.filters.filter(f => !isSubscriptionOnlyFilter(f));
 
   if (coverageFilters.length === 0) {

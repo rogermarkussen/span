@@ -33,8 +33,8 @@ span/
 
 Basic query structure:
 ```
-HAS <coverage-conditions>    -- Required: fiber, kabel, dsl, 5g, 4g, ftb, nedhast >= N
-[IN <population-filters>]    -- Optional: fylke, kom, tett, spredt, type, private, business
+[HAS <coverage-conditions>]  -- Optional: fiber, kabel, dsl, 5g, 4g, ftb, nedhast >= N
+[IN <population-filters>]    -- Optional: fylke, kom, tett, spredt, type, privat, bedrift
 COUNT <metric>               -- Required: hus, adr, fritid, ab
 [BY <grouping>]              -- Optional: total, fylke, kom, postnr, tett, tilb, tek
 [SHOW <output>]              -- Optional: count, andel, begge
@@ -45,7 +45,7 @@ COUNT <metric>               -- Required: hus, adr, fritid, ab
 
 Quantifiers for overlap queries: `ANY(...)`, `ALL(...)`, `NONE(...)`
 
-**Note:** `COUNT ab` counts subscriptions from `span_ab.parquet`. Filters `private`/`business` are only valid with `COUNT ab`.
+**Note:** `COUNT ab` counts subscriptions from `span_ab.parquet`. Filters `privat`/`bedrift` are only valid with `COUNT ab`.
 
 ## Data Notes
 

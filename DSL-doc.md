@@ -177,8 +177,8 @@ Begrens hvilken befolkning du måler mot.
 | `spredt` | flagg | - | Kun spredtbygde strøk |
 | `type` | tekst | house, apartment, cabin | Bygningstype |
 | `postnr` | tekst | 0001-9999 | Postnummer |
-| `private` | flagg | - | Kun privatkundeabonnementer* |
-| `business` | flagg | - | Kun bedriftsabonnementer* |
+| `privat` | flagg | - | Kun privatkundeabonnementer* |
+| `bedrift` | flagg | - | Kun bedriftsabonnementer* |
 
 \* Kun tilgjengelig med `COUNT ab`
 
@@ -188,7 +188,7 @@ IN fylke = Oslo
 IN tett
 IN type = cabin
 IN fylke = Rogaland AND tett
-IN private                     -- Kun for COUNT ab
+IN privat                      -- Kun for COUNT ab
 ```
 
 ---
@@ -209,16 +209,16 @@ Hva du vil telle:
 `COUNT ab` teller faktiske abonnementer fra abonnementsdatasettet (`span_ab.parquet`), i motsetning til de andre metrikkene som teller potensielle dekningsmuligheter.
 
 **Merk:** For abonnementer kan du bruke spesielle filtre:
-- `IN private` - Kun privatkundeabonnementer
-- `IN business` - Kun bedriftsabonnementer
+- `IN privat` - Kun privatkundeabonnementer
+- `IN bedrift` - Kun bedriftsabonnementer
 
 Disse filtrene er **kun** tilgjengelige for `COUNT ab`.
 
 **Eksempler:**
 ```
 HAS fiber COUNT ab FOR 2024                    -- Alle fiberabonnementer
-HAS fiber IN private COUNT ab BY fylke FOR 2024  -- Private fiberabonnementer per fylke
-HAS nedhast >= 100 IN business COUNT ab FOR 2024 -- Bedriftsabonnementer med 100+ Mbps
+HAS fiber IN privat COUNT ab BY fylke FOR 2024   -- Private fiberabonnementer per fylke
+HAS nedhast >= 100 IN bedrift COUNT ab FOR 2024  -- Bedriftsabonnementer med 100+ Mbps
 ```
 
 ---
@@ -496,7 +496,7 @@ SORT count DESC
 
 ```
 HAS fiber
-IN private
+IN privat
 COUNT ab
 BY fylke
 SORT count DESC
@@ -511,7 +511,7 @@ FOR 2024
 
 ```
 HAS nedhast >= 100
-IN business
+IN bedrift
 COUNT ab
 BY tilb
 SORT count DESC
@@ -594,7 +594,7 @@ IN <populasjonsfilter>       -- Valgfri: Hvilken befolkning?
   fylke = Oslo               -- Fylkesfilter
   tett|spredt                -- Tettbygd/spredtbygd
   type = cabin               -- Bygningstype
-  private|business           -- Kun for COUNT ab
+  privat|bedrift             -- Kun for COUNT ab
 
 COUNT <metrikk>              -- Obligatorisk: Hva telles?
   hus|adr|fritid|ab

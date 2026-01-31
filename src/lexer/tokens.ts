@@ -27,7 +27,7 @@ export const COVERAGE_FLAGS = new Set([
 ]);
 
 export const POPULATION_FLAGS = new Set([
-  'tett', 'spredt', 'private', 'business'
+  'tett', 'spredt', 'privat', 'bedrift'
 ]);
 
 export const METRICS = new Set([
