@@ -23,23 +23,23 @@ export const KEYWORDS = new Set([
 ]);
 
 export const COVERAGE_FLAGS = new Set([
-  'fiber', 'cable', 'dsl', '5g', '4g', 'fwa'
+  'fiber', 'kabel', 'dsl', '5g', '4g', 'ftb'
 ]);
 
 export const POPULATION_FLAGS = new Set([
-  'urban', 'rural'
+  'tett', 'spredt', 'private', 'business'
 ]);
 
 export const METRICS = new Set([
-  'homes', 'addresses', 'buildings', 'cabins'
+  'hus', 'adr', 'fritid', 'subscriptions'
 ]);
 
 export const GROUPINGS = new Set([
-  'national', 'county', 'municipality', 'postal', 'urban', 'provider', 'tech'
+  'total', 'fylke', 'kom', 'postnr', 'tett', 'tilb', 'tek'
 ]);
 
 export const OUTPUTS = new Set([
-  'count', 'percent', 'both'
+  'count', 'andel', 'begge'
 ]);
 
 export const SORT_DIRS = new Set([
@@ -47,11 +47,11 @@ export const SORT_DIRS = new Set([
 ]);
 
 export const SORT_FIELDS = new Set([
-  'count', 'percent', 'group'
+  'count', 'andel', 'group'
 ]);
 
 export const FIELDS = new Set([
-  'tech', 'speed', 'upload', 'provider', 'county', 'municipality', 'type', 'postal'
+  'tek', 'nedhast', 'opphast', 'tilb', 'fylke', 'kom', 'type', 'postnr'
 ]);
 
 export const OPERATORS = new Set([

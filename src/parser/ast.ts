@@ -1,8 +1,8 @@
-export type CoverageFlag = 'fiber' | 'cable' | 'dsl' | '5g' | '4g' | 'fwa';
-export type PopulationFlag = 'urban' | 'rural';
-export type Metric = 'homes' | 'addresses' | 'buildings' | 'cabins';
-export type Grouping = 'national' | 'county' | 'municipality' | 'postal' | 'urban' | 'provider' | 'tech';
-export type Output = 'count' | 'percent' | 'both';
+export type CoverageFlag = 'fiber' | 'kabel' | 'dsl' | '5g' | '4g' | 'ftb';
+export type PopulationFlag = 'tett' | 'spredt' | 'private' | 'business';
+export type Metric = 'hus' | 'adr' | 'fritid' | 'subscriptions';
+export type Grouping = 'total' | 'fylke' | 'kom' | 'postnr' | 'tett' | 'tilb' | 'tek';
+export type Output = 'count' | 'andel' | 'begge';
 export type SortDir = 'ASC' | 'DESC';
 export type Quantifier = 'ANY' | 'ALL' | 'NONE';
 export type ComparisonOp = '=' | '!=' | '>=' | '<=' | '>' | '<';
@@ -54,7 +54,7 @@ export type InFilter =
   | { type: 'field'; field: string; op: ComparisonOp; value: string | number };
 
 export interface SortClause {
-  field: 'count' | 'percent' | 'group';
+  field: 'count' | 'andel' | 'group';
   dir: SortDir;
 }
 

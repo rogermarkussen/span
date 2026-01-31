@@ -5,12 +5,12 @@
 ## Eksempel
 
 ```
-HAS fiber AND speed >= 100
-IN urban
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+HAS fiber AND nedhast >= 100
+IN tett
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 TOP 10
 ```
 
@@ -37,87 +37,86 @@ TOP <n>                      -- Valgfri: Maks rader
 ## Dekningsbetingelser (HAS)
 
 ### Teknologiflagg
-`fiber` | `cable` | `dsl` | `5g` | `4g` | `fwa`
+`fiber` | `kabel` | `dsl` | `5g` | `4g` | `ftb`
 
 ### Sammenligninger
 ```
-speed >= 100              -- Nedlastingshastighet i Mbps
-upload >= 50              -- Opplastingshastighet i Mbps
-provider = Telenor        -- Leverandør
-tech = Fiber              -- Teknologitype
+nedhast >= 100            -- Nedlastingshastighet i Mbps
+opphast >= 50             -- Opplastingshastighet i Mbps
+tilb = Telenor            -- Leverandør
+tek = Fiber               -- Teknologitype
 ```
 
 ### Logiske operatorer
 ```
-fiber AND speed >= 100    -- Begge betingelser
-fiber OR cable            -- En av betingelsene
+fiber AND nedhast >= 100  -- Begge betingelser
+fiber OR kabel            -- En av betingelsene
 NOT dsl                   -- Negasjon
 ```
 
 ### Kvantifiserere
 ```
-ANY(fiber, cable)         -- Minst én matcher (standard)
+ANY(fiber, kabel)         -- Minst én matcher (standard)
 ALL(fiber, 5g)            -- Har BÅDE fiber OG 5G
-NONE(speed >= 30)         -- Ingen tilbud med >= 30 Mbps
+NONE(nedhast >= 30)       -- Ingen tilbud med >= 30 Mbps
 ```
 
 ## Populasjonsfiltre (IN)
 
 | Filter | Eksempel |
 |--------|----------|
-| Fylke | `county = Oslo` |
-| Kommune | `municipality = Bergen` |
-| Tettbygd | `urban` |
-| Spredtbygd | `rural` |
+| Fylke | `fylke = Oslo` |
+| Kommune | `kom = Bergen` |
+| Tettbygd | `tett` |
+| Spredtbygd | `spredt` |
 | Bygningstype | `type = cabin` |
-| Postnummer | `postal = 5000` |
+| Postnummer | `postnr = 5000` |
 
 ## Metrikker (COUNT)
 
 | Metrikk | Beskrivelse |
 |---------|-------------|
-| `homes` | Husstander |
-| `addresses` | Adresser |
-| `buildings` | Bygninger |
-| `cabins` | Fritidsboliger |
+| `hus` | Husstander |
+| `adr` | Adresser |
+| `fritid` | Fritidsboliger |
 
 ## Gruppering (BY)
 
-`national` | `county` | `municipality` | `postal` | `urban` | `provider` | `tech`
+`total` | `fylke` | `kom` | `postnr` | `tett` | `tilb` | `tek`
 
 ## Flere eksempler
 
 ### Nasjonal fiberdekning
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 
 ### Husstander uten høyhastighet
 ```
-HAS NONE(speed >= 30)
-COUNT homes
-BY county
+HAS NONE(nedhast >= 30)
+COUNT hus
+BY fylke
 SORT count DESC
 ```
 
 ### Dekning fra flere leverandører
 ```
-HAS ALL(provider IN (Telenor, Telia))
-COUNT addresses
-SHOW percent
+HAS ALL(tilb IN (Telenor, Telia))
+COUNT adr
+SHOW andel
 ```
 
 ### Sammenlign hastighetsnivåer
 ```
-HAS speed >= 1000
-COUNT homes
+HAS nedhast >= 1000
+COUNT hus
 ---
-HAS speed >= 100 AND speed < 1000
-COUNT homes
+HAS nedhast >= 100 AND nedhast < 1000
+COUNT hus
 ---
-HAS speed < 100
-COUNT homes
+HAS nedhast < 100
+COUNT hus
 ```
 
 ## Dokumentasjon

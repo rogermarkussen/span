@@ -19,7 +19,7 @@ Den enkleste spørringen har bare to deler:
 
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 
 Dette betyr: *«Tell hvor mange husstander som har fiberdekning»*
@@ -58,8 +58,8 @@ Klammeparentes `[ ]` betyr at delen er valgfri.
 |-----------|--------|----------|-------------|
 | `IN` | Populasjonsfilter | Alle adresser | Hvilken populasjon måles mot? |
 | `BY` | Gruppering | Nasjonalt totalt | Hvordan bryte ned resultatene? |
-| `SHOW` | Visningsformat | `both` | Hva skal vises? |
-| `SORT` | Sortering | `percent DESC` | Hvordan sortere resultatene? |
+| `SHOW` | Visningsformat | `begge` | Hva skal vises? |
+| `SORT` | Sortering | `andel DESC` | Hvordan sortere resultatene? |
 | `TOP` | Begrensning | Ingen grense | Maks antall rader å returnere? |
 | `FOR` | Årsfilter | API-standard | Hvilket/hvilke år skal spørres? |
 
@@ -74,16 +74,16 @@ Bruk disse for å sjekke om en adresse har en bestemt teknologi:
 | Flagg | Beskrivelse |
 |-------|-------------|
 | `fiber` | Har fiberdekning |
-| `cable` | Har kabeldekning |
+| `kabel` | Har kabeldekning |
 | `dsl` | Har DSL-dekning |
 | `5g` | Har 5G-dekning |
 | `4g` | Har 4G-dekning |
-| `fwa` | Har Fast Trådløst Aksess |
+| `ftb` | Har Fast Trådløst Bredbånd |
 
 **Eksempel:**
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 
 ### Felt med verdier
@@ -92,27 +92,27 @@ For mer presise spørringer kan du bruke felt med sammenligninger:
 
 | Felt | Type | Verdier | Beskrivelse |
 |------|------|---------|-------------|
-| `tech` | tekst | Fiber, Cable, DSL, 5G, 4G, FWA | Teknologitype |
-| `speed` | tall | Mbps | Nedlastningshastighet |
-| `upload` | tall | Mbps | Opplastingshastighet |
-| `provider` | tekst | Telenor, Telia, Ice, ... | Leverandør |
+| `tek` | tekst | Fiber, Cable, DSL, 5G, 4G, FWA | Teknologitype |
+| `nedhast` | tall | Mbps | Nedlastningshastighet |
+| `opphast` | tall | Mbps | Opplastingshastighet |
+| `tilb` | tekst | Telenor, Telia, Ice, ... | Leverandør |
 
 ### Sammenligningsoperatorer
 
 | Operator | Betydning | Eksempel |
 |----------|-----------|----------|
-| `=` | Er lik | `tech = Fiber` |
-| `!=` | Er ikke lik | `provider != Telenor` |
-| `>=` | Større eller lik | `speed >= 100` |
-| `<=` | Mindre eller lik | `speed <= 30` |
-| `>` | Større enn | `speed > 50` |
-| `<` | Mindre enn | `speed < 10` |
-| `IN` | I liste | `provider IN (Telenor, Telia)` |
+| `=` | Er lik | `tek = Fiber` |
+| `!=` | Er ikke lik | `tilb != Telenor` |
+| `>=` | Større eller lik | `nedhast >= 100` |
+| `<=` | Mindre eller lik | `nedhast <= 30` |
+| `>` | Større enn | `nedhast > 50` |
+| `<` | Mindre enn | `nedhast < 10` |
+| `IN` | I liste | `tilb IN (Telenor, Telia)` |
 
 **Eksempel:**
 ```
-HAS speed >= 100
-COUNT homes
+HAS nedhast >= 100
+COUNT hus
 ```
 
 ### Logiske operatorer
@@ -121,16 +121,16 @@ Kombiner flere betingelser:
 
 | Operator | Betydning | Eksempel |
 |----------|-----------|----------|
-| `AND` | Begge betingelser | `fiber AND speed >= 100` |
-| `OR` | En av betingelsene | `fiber OR cable` |
+| `AND` | Begge betingelser | `fiber AND nedhast >= 100` |
+| `OR` | En av betingelsene | `fiber OR kabel` |
 | `NOT` | Negasjon | `NOT dsl` |
 
 **Prioritet:** `NOT` → `AND` → `OR`
 
 Bruk parenteser for å overstyre prioritet:
 ```
-HAS (fiber AND speed >= 100) OR (5g AND speed >= 50)
-HAS NOT (fiber OR cable)
+HAS (fiber AND nedhast >= 100) OR (5g AND nedhast >= 50)
+HAS NOT (fiber OR kabel)
 ```
 
 ### Kvantifiserere (ANY, ALL, NONE)
@@ -145,10 +145,10 @@ Når en adresse har flere dekningstilbud, kan du spesifisere hvordan betingelsen
 
 **Eksempler:**
 ```
-HAS ANY(fiber, cable)           -- Har fiber ELLER kabel
-HAS ALL(fiber, cable)           -- Har BÅDE fiber OG kabel
-HAS NONE(speed >= 30)           -- Ingen tilbud med hastighet >= 30
-HAS ALL(provider IN (Telenor, Telia))  -- Dekket av både Telenor og Telia
+HAS ANY(fiber, kabel)             -- Har fiber ELLER kabel
+HAS ALL(fiber, kabel)             -- Har BÅDE fiber OG kabel
+HAS NONE(nedhast >= 30)           -- Ingen tilbud med hastighet >= 30
+HAS ALL(tilb IN (Telenor, Telia)) -- Dekket av både Telenor og Telia
 ```
 
 ---
@@ -161,19 +161,19 @@ Begrens hvilken befolkning du måler mot.
 
 | Felt | Type | Verdier | Beskrivelse |
 |------|------|---------|-------------|
-| `county` | tekst | Oslo, Rogaland, ... | Fylke |
-| `municipality` | tekst | Bergen, Trondheim, ... | Kommune |
-| `urban` | flagg | - | Kun tettbygde strøk |
-| `rural` | flagg | - | Kun spredtbygde strøk |
+| `fylke` | tekst | Oslo, Rogaland, ... | Fylke |
+| `kom` | tekst | Bergen, Trondheim, ... | Kommune |
+| `tett` | flagg | - | Kun tettbygde strøk |
+| `spredt` | flagg | - | Kun spredtbygde strøk |
 | `type` | tekst | house, apartment, cabin | Bygningstype |
-| `postal` | tekst | 0001-9999 | Postnummer |
+| `postnr` | tekst | 0001-9999 | Postnummer |
 
 **Eksempler:**
 ```
-IN county = Oslo
-IN urban
+IN fylke = Oslo
+IN tett
 IN type = cabin
-IN county = Rogaland AND urban
+IN fylke = Rogaland AND tett
 ```
 
 ---
@@ -184,10 +184,9 @@ Hva du vil telle:
 
 | Metrikk | Beskrivelse |
 |---------|-------------|
-| `homes` | Antall husstander |
-| `addresses` | Antall adresser |
-| `buildings` | Antall bygninger |
-| `cabins` | Antall fritidsboliger |
+| `hus` | Antall husstander |
+| `adr` | Antall adresser |
+| `fritid` | Antall fritidsboliger |
 
 ---
 
@@ -197,13 +196,13 @@ Hvordan resultatene skal brytes ned:
 
 | Nivå | Beskrivelse |
 |------|-------------|
-| `national` | Én nasjonal total (standard) |
-| `county` | Per fylke (11 rader) |
-| `municipality` | Per kommune (~356 rader) |
-| `postal` | Per postnummer |
-| `urban` | Tettbygd vs. spredtbygd (2 rader) |
-| `provider` | Per leverandør |
-| `tech` | Per teknologi |
+| `total` | Én nasjonal total (standard) |
+| `fylke` | Per fylke (11 rader) |
+| `kom` | Per kommune (~356 rader) |
+| `postnr` | Per postnummer |
+| `tett` | Tettbygd vs. spredtbygd (2 rader) |
+| `tilb` | Per leverandør |
+| `tek` | Per teknologi |
 
 ---
 
@@ -214,8 +213,8 @@ Hva som vises i resultatet:
 | Format | Beskrivelse |
 |--------|-------------|
 | `count` | Kun antall med dekning |
-| `percent` | Kun prosent |
-| `both` | Antall, total og prosent (standard) |
+| `andel` | Kun prosent |
+| `begge` | Antall, total og prosent (standard) |
 
 ---
 
@@ -226,8 +225,8 @@ Sorter resultatene:
 ```
 SORT count ASC      -- Lavest antall først
 SORT count DESC     -- Høyest antall først
-SORT percent ASC    -- Lavest prosent først
-SORT percent DESC   -- Høyest prosent først
+SORT andel ASC      -- Lavest prosent først
+SORT andel DESC     -- Høyest prosent først
 SORT group ASC      -- Alfabetisk A-Å
 SORT group DESC     -- Alfabetisk Å-A
 ```
@@ -259,9 +258,9 @@ Når du bruker flere år, får resultatet en ekstra `aar`-kolonne.
 
 **Eksempler:**
 ```
-HAS fiber COUNT homes FOR 2024              -- Data fra 2024
-HAS fiber COUNT homes BY county FOR 2024    -- Per fylke i 2024
-HAS fiber COUNT homes FOR (2023, 2024)      -- Sammenlign 2023 og 2024
+HAS fiber COUNT hus FOR 2024              -- Data fra 2024
+HAS fiber COUNT hus BY fylke FOR 2024     -- Per fylke i 2024
+HAS fiber COUNT hus FOR (2023, 2024)      -- Sammenlign 2023 og 2024
 ```
 
 > **Tips:** Når `FOR` utelates, brukes årstallet fra API-innstillingene.
@@ -276,12 +275,12 @@ HAS fiber COUNT homes FOR (2023, 2024)      -- Sammenlign 2023 og 2024
 
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 
 **Resultat:**
-| homes_covered | total_homes | percent |
-|---------------|-------------|---------|
+| hus_covered | total_hus | percent |
+|-------------|-----------|---------|
 | 1 850 000 | 2 400 000 | 77.1% |
 
 ---
@@ -292,15 +291,15 @@ COUNT homes
 
 ```
 HAS fiber
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 ```
 
 **Resultat:**
-| county | percent |
-|--------|---------|
+| fylke | percent |
+|-------|---------|
 | Oslo | 89.2% |
 | Rogaland | 82.1% |
 | Vestland | 78.4% |
@@ -313,10 +312,10 @@ SORT percent DESC
 *«Husstander i tettbygde strøk med 100+ Mbps, per fylke»*
 
 ```
-HAS speed >= 100
-IN urban
-COUNT homes
-BY county
+HAS nedhast >= 100
+IN tett
+COUNT hus
+BY fylke
 ```
 
 ---
@@ -326,10 +325,10 @@ BY county
 *«Hvor stor andel av hyttene har bredbånd?»*
 
 ```
-HAS fiber OR cable OR dsl OR fwa
+HAS fiber OR kabel OR dsl OR ftb
 IN type = cabin
-COUNT cabins
-SHOW percent
+COUNT fritid
+SHOW andel
 ```
 
 ---
@@ -340,8 +339,8 @@ SHOW percent
 
 ```
 HAS ALL(fiber, 5g)
-COUNT addresses
-BY county
+COUNT adr
+BY fylke
 ```
 
 ---
@@ -352,8 +351,8 @@ BY county
 
 ```
 HAS fiber
-COUNT homes
-BY provider
+COUNT hus
+BY tilb
 SORT count DESC
 TOP 5
 ```
@@ -365,17 +364,17 @@ TOP 5
 *«Fordeling av hastighetsnivåer nasjonalt»*
 
 ```
-HAS speed >= 1000
-COUNT homes
+HAS nedhast >= 1000
+COUNT hus
 ---
-HAS speed >= 100 AND speed < 1000
-COUNT homes
+HAS nedhast >= 100 AND nedhast < 1000
+COUNT hus
 ---
-HAS speed >= 30 AND speed < 100
-COUNT homes
+HAS nedhast >= 30 AND nedhast < 100
+COUNT hus
 ---
-HAS speed < 30
-COUNT homes
+HAS nedhast < 30
+COUNT hus
 ```
 
 > **Tips:** Bruk `---` for å kjøre flere spørringer samtidig.
@@ -388,11 +387,11 @@ COUNT homes
 
 ```
 HAS 5g
-IN rural
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+IN spredt
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 TOP 10
 ```
 
@@ -403,9 +402,9 @@ TOP 10
 *«Adresser med dekning fra både Telenor og Telia»*
 
 ```
-HAS ALL(provider IN (Telenor, Telia))
-COUNT addresses
-SHOW percent
+HAS ALL(tilb IN (Telenor, Telia))
+COUNT adr
+SHOW andel
 ```
 
 ---
@@ -415,9 +414,9 @@ SHOW percent
 *«Husstander uten høyhastighetsalternativer»*
 
 ```
-HAS NONE(speed >= 30)
-COUNT homes
-BY county
+HAS NONE(nedhast >= 30)
+COUNT hus
+BY fylke
 SORT count DESC
 ```
 
@@ -428,14 +427,14 @@ SORT count DESC
 Du kan kombinere flere spørringer med `---`-separatoren:
 
 ```
-HAS speed >= 1000
-COUNT homes
+HAS nedhast >= 1000
+COUNT hus
 ---
-HAS speed >= 100 AND speed < 1000
-COUNT homes
+HAS nedhast >= 100 AND nedhast < 1000
+COUNT hus
 ---
-HAS speed < 100
-COUNT homes
+HAS nedhast < 100
+COUNT hus
 ```
 
 API-et returnerer en array med resultater for hver spørring.
@@ -461,7 +460,7 @@ Span gir tydelige feilmeldinger når noe er galt:
 
 ```
 Error: Unknown keyword 'HAVING' at position 1
-  HAS fiber HAVING speed >= 100
+  HAS fiber HAVING nedhast >= 100
             ^^^^^^
   Did you mean 'AND'?
 ```
@@ -470,15 +469,15 @@ Error: Unknown keyword 'HAVING' at position 1
 Error: Unknown field 'bandwidth' at position 1
   HAS bandwidth >= 100
       ^^^^^^^^^
-  Available fields: speed, upload, tech, provider
+  Available fields: nedhast, opphast, tek, tilb
 ```
 
 ```
 Error: Missing required COUNT clause
   HAS fiber
-  BY county
+  BY fylke
   ^^^^^^^^^
-  Query must include COUNT (e.g., COUNT homes)
+  Query must include COUNT (e.g., COUNT hus)
 ```
 
 ---
@@ -487,27 +486,27 @@ Error: Missing required COUNT clause
 
 ```
 HAS <dekningsbetingelse>     -- Obligatorisk: Hva slags dekning?
-  fiber|cable|dsl|5g|4g|fwa  -- Teknologiflagg
-  speed >= 100               -- Hastighetssammenligning
-  provider = Telenor         -- Leverandørfilter
+  fiber|kabel|dsl|5g|4g|ftb  -- Teknologiflagg
+  nedhast >= 100             -- Hastighetssammenligning
+  tilb = Telenor             -- Leverandørfilter
   ANY(...)|ALL(...)|NONE(...)-- Kvantifiserere
 
 IN <populasjonsfilter>       -- Valgfri: Hvilken befolkning?
-  county = Oslo              -- Fylkesfilter
-  urban|rural                -- Tettbygd/spredtbygd
+  fylke = Oslo               -- Fylkesfilter
+  tett|spredt                -- Tettbygd/spredtbygd
   type = cabin               -- Bygningstype
 
 COUNT <metrikk>              -- Obligatorisk: Hva telles?
-  homes|addresses|buildings|cabins
+  hus|adr|fritid
 
 BY <gruppering>              -- Valgfri: Hvordan gruppere?
-  national|county|municipality|postal|urban|provider|tech
+  total|fylke|kom|postnr|tett|tilb|tek
 
 SHOW <format>                -- Valgfri: Hva vises?
-  count|percent|both
+  count|andel|begge
 
 SORT <felt> <retning>        -- Valgfri: Sortering
-  count|percent|group ASC|DESC
+  count|andel|group ASC|DESC
 
 TOP <n>                      -- Valgfri: Maks rader
 

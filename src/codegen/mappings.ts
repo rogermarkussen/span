@@ -3,56 +3,58 @@ import { CoverageFlag, Metric, Grouping, PopulationFlag } from '../parser/ast.js
 // Technology mappings: DSL flag → SQL condition
 export const TECH_MAPPINGS: Record<CoverageFlag, string> = {
   'fiber': "tek = 'fiber'",
-  'cable': "tek = 'cable'",
+  'kabel': "tek = 'cable'",
   'dsl': "tek = 'dsl'",
   '5g': "tek = '5g'",
   '4g': "tek = '4g'",
-  'fwa': "tek = 'fwa'"
+  'ftb': "tek = 'fwa'"
 };
 
 // Metric mappings: DSL metric → SQL column
 export const METRIC_MAPPINGS: Record<Metric, string> = {
-  'homes': 'hus',
-  'addresses': '1',  // COUNT(1) for addresses
-  'buildings': 'bygninger',
-  'cabins': 'fritid'
+  'hus': 'hus',
+  'adr': '1',  // COUNT(1) for addresses
+  'fritid': 'fritid',
+  'subscriptions': '1'  // COUNT(1) for subscription rows
 };
 
 // Grouping mappings: DSL grouping → SQL expression
 export const GROUPING_MAPPINGS: Record<Grouping, string> = {
-  'national': "'Norge'",
-  'county': 'fylke',
-  'municipality': 'komnavn',
-  'postal': 'postnr',
-  'urban': "CASE WHEN ertett THEN 'Tettsted' ELSE 'Spredt' END",
-  'provider': 'tilb',
-  'tech': 'tek'
+  'total': "'Norge'",
+  'fylke': 'fylke',
+  'kom': 'komnavn',
+  'postnr': 'postnr',
+  'tett': "CASE WHEN ertett THEN 'Tettsted' ELSE 'Spredt' END",
+  'tilb': 'tilb',
+  'tek': 'tek'
 };
 
 // Population filter mappings
 export const POPULATION_MAPPINGS: Record<PopulationFlag, string> = {
-  'urban': 'ertett = true',
-  'rural': 'ertett = false'
+  'tett': 'ertett = true',
+  'spredt': 'ertett = false',
+  'private': 'privat = true',
+  'business': 'privat = false'
 };
 
 // Field mappings: DSL field → SQL column
 export const FIELD_MAPPINGS: Record<string, string> = {
-  'speed': 'ned',
-  'upload': 'opp',
-  'tech': 'tek',
-  'provider': 'tilb',
-  'county': 'fylke',
-  'municipality': 'komnavn',
+  'nedhast': 'ned_mbps',
+  'opphast': 'opp_mbps',
+  'tek': 'tek',
+  'tilb': 'tilb',
+  'fylke': 'fylke',
+  'kom': 'komnavn',
   'type': 'bygtype',
-  'postal': 'postnr'
+  'postnr': 'postnr'
 };
 
-// Speed conversion: Mbps to kbps
+// Speed conversion: no longer needed (span_* files have Mbps directly)
 export function convertSpeed(mbps: number): number {
-  return mbps * 1000;
+  return mbps;  // No conversion - span_* files store values in Mbps
 }
 
-// Check if field is a speed field (needs conversion)
+// Check if field is a speed field (no conversion needed for span_* files)
 export function isSpeedField(field: string): boolean {
-  return field === 'speed' || field === 'upload';
+  return field === 'nedhast' || field === 'opphast';
 }

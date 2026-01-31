@@ -298,7 +298,7 @@ export class Parser {
     if (!this.checkIdentifier(METRICS)) {
       const token = this.current();
       throw new ParseError(
-        `Expected metric (homes, addresses, buildings, cabins)`,
+        `Expected metric (hus, adr, fritid)`,
         token.position,
         token.line,
         token.column
@@ -310,13 +310,13 @@ export class Parser {
 
   private parseByClause(): Grouping {
     if (!this.match('KEYWORD', 'BY')) {
-      return 'national'; // default
+      return 'total'; // default
     }
 
     if (!this.checkIdentifier(GROUPINGS)) {
       const token = this.current();
       throw new ParseError(
-        `Expected grouping (national, county, municipality, postal, urban, provider, tech)`,
+        `Expected grouping (total, fylke, kom, postnr, tett, tilb, tek)`,
         token.position,
         token.line,
         token.column
@@ -328,7 +328,7 @@ export class Parser {
 
   private parseShowClause(): Output {
     if (!this.match('KEYWORD', 'SHOW')) {
-      return 'both'; // default
+      return 'begge'; // default
     }
 
     // Handle 'count' which is both a KEYWORD (COUNT) and an output type
@@ -340,7 +340,7 @@ export class Parser {
     if (!this.checkIdentifier(OUTPUTS)) {
       const token = this.current();
       throw new ParseError(
-        `Expected output type (count, percent, both)`,
+        `Expected output type (count, andel, begge)`,
         token.position,
         token.line,
         token.column
@@ -355,22 +355,22 @@ export class Parser {
       return { field: 'group', dir: 'ASC' }; // default
     }
 
-    // Expect field name: count, percent, or group
+    // Expect field name: count, andel, or group
     // Handle 'count' which is both a KEYWORD (COUNT) and a sort field
-    let field: 'count' | 'percent' | 'group';
+    let field: 'count' | 'andel' | 'group';
     if (this.check('KEYWORD', 'COUNT')) {
       this.advance();
       field = 'count';
     } else if (!this.checkIdentifier(SORT_FIELDS)) {
       const token = this.current();
       throw new ParseError(
-        `Expected sort field (count, percent, group)`,
+        `Expected sort field (count, andel, group)`,
         token.position,
         token.line,
         token.column
       );
     } else {
-      field = this.advance().value as 'count' | 'percent' | 'group';
+      field = this.advance().value as 'count' | 'andel' | 'group';
     }
 
     let dir: SortDir = 'ASC';

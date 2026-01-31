@@ -6,112 +6,139 @@ describe('SQL Generator', () => {
 
   describe('basic queries', () => {
     it('generates SQL for minimal query', () => {
-      const sql = compile('HAS fiber COUNT homes', options);
+      const sql = compile('HAS fiber COUNT hus', options);
 
       expect(sql).toContain("tek = 'fiber'");
       expect(sql).toContain('SUM(hus)');
-      expect(sql).toContain("'data/2024/adr.parquet'");
-      expect(sql).toContain("'data/2024/fbb.parquet'");
+      expect(sql).toContain("'data/span_adr.parquet'");
+      expect(sql).toContain("'data/span_dekning.parquet'");
+      expect(sql).toContain('aar = 2024');
     });
 
-    it('generates SQL with county grouping', () => {
-      const sql = compile('HAS fiber COUNT homes BY county', options);
+    it('generates SQL with fylke grouping', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke', options);
 
       expect(sql).toContain('fylke AS gruppe');
       expect(sql).toContain('GROUP BY fylke');
     });
 
-    it('generates SQL with municipality grouping', () => {
-      const sql = compile('HAS fiber COUNT homes BY municipality', options);
+    it('includes national total for BY fylke', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke', options);
+
+      // Should use UNION ALL to add national total
+      expect(sql).toContain('UNION ALL');
+      expect(sql).toContain("'Norge' AS gruppe");
+      // Should sort Norge last
+      expect(sql).toContain("CASE WHEN gruppe = 'Norge' THEN 1 ELSE 0 END");
+    });
+
+    it('calculates national total correctly for SHOW begge', () => {
+      const sql = compile('HAS fiber COUNT hus BY fylke SHOW begge', options);
+
+      // Should aggregate from by_county CTE
+      expect(sql).toContain('SUM(covered) AS covered');
+      expect(sql).toContain('SUM(total) AS total');
+      expect(sql).toContain('ROUND(100.0 * SUM(covered) / SUM(total), 1) AS percent');
+    });
+
+    it('does not add national total for other groupings', () => {
+      const sql = compile('HAS fiber COUNT hus BY kom', options);
+
+      expect(sql).not.toContain('UNION ALL');
+      expect(sql).not.toContain("'Norge' AS gruppe");
+    });
+
+    it('generates SQL with kom grouping', () => {
+      const sql = compile('HAS fiber COUNT hus BY kom', options);
 
       expect(sql).toContain('komnavn AS gruppe');
     });
 
-    it('generates SQL with urban grouping', () => {
-      const sql = compile('HAS fiber COUNT homes BY urban', options);
+    it('generates SQL with tett grouping', () => {
+      const sql = compile('HAS fiber COUNT hus BY tett', options);
 
       expect(sql).toContain("CASE WHEN ertett THEN 'Tettsted' ELSE 'Spredt' END AS gruppe");
     });
   });
 
-  describe('speed conversion', () => {
-    it('converts speed from Mbps to kbps', () => {
-      const sql = compile('HAS speed >= 100 COUNT homes', options);
+  describe('speed handling (Mbps direct)', () => {
+    it('uses Mbps directly (no conversion)', () => {
+      const sql = compile('HAS nedhast >= 100 COUNT hus', options);
 
-      // 100 Mbps = 100000 kbps
-      expect(sql).toContain('ned >= 100000');
+      // Now uses ned_mbps directly with Mbps value
+      expect(sql).toContain('ned_mbps >= 100');
     });
 
-    it('converts upload speed from Mbps to kbps', () => {
-      const sql = compile('HAS upload >= 50 COUNT homes', options);
+    it('uses upload Mbps directly', () => {
+      const sql = compile('HAS opphast >= 50 COUNT hus', options);
 
-      // 50 Mbps = 50000 kbps
-      expect(sql).toContain('opp >= 50000');
+      // Now uses opp_mbps directly with Mbps value
+      expect(sql).toContain('opp_mbps >= 50');
     });
   });
 
   describe('technology mappings', () => {
     it('maps fiber to tek column', () => {
-      const sql = compile('HAS fiber COUNT homes', options);
+      const sql = compile('HAS fiber COUNT hus', options);
       expect(sql).toContain("tek = 'fiber'");
     });
 
-    it('maps cable to tek column', () => {
-      const sql = compile('HAS cable COUNT homes', options);
+    it('maps kabel to tek column', () => {
+      const sql = compile('HAS kabel COUNT hus', options);
       expect(sql).toContain("tek = 'cable'");
     });
 
     it('maps 5g to tek column', () => {
-      const sql = compile('HAS 5g COUNT homes', options);
+      const sql = compile('HAS 5g COUNT hus', options);
       expect(sql).toContain("tek = '5g'");
     });
 
-    it('maps fwa to tek column', () => {
-      const sql = compile('HAS fwa COUNT homes', options);
+    it('maps ftb to tek column', () => {
+      const sql = compile('HAS ftb COUNT hus', options);
       expect(sql).toContain("tek = 'fwa'");
     });
   });
 
   describe('metric mappings', () => {
-    it('maps homes to hus', () => {
-      const sql = compile('HAS fiber COUNT homes', options);
+    it('maps hus to hus', () => {
+      const sql = compile('HAS fiber COUNT hus', options);
       expect(sql).toContain('SUM(hus)');
     });
 
-    it('maps cabins to fritid', () => {
-      const sql = compile('HAS fiber COUNT cabins', options);
+    it('maps fritid to fritid', () => {
+      const sql = compile('HAS fiber COUNT fritid', options);
       expect(sql).toContain('SUM(fritid)');
     });
   });
 
   describe('population filters', () => {
-    it('generates urban filter', () => {
-      const sql = compile('HAS fiber IN urban COUNT homes', options);
+    it('generates tett filter', () => {
+      const sql = compile('HAS fiber IN tett COUNT hus', options);
       expect(sql).toContain('ertett = true');
     });
 
-    it('generates rural filter', () => {
-      const sql = compile('HAS fiber IN rural COUNT homes', options);
+    it('generates spredt filter', () => {
+      const sql = compile('HAS fiber IN spredt COUNT hus', options);
       expect(sql).toContain('ertett = false');
     });
 
-    it('generates county filter', () => {
-      const sql = compile('HAS fiber IN county = "Oslo" COUNT homes', options);
+    it('generates fylke filter', () => {
+      const sql = compile('HAS fiber IN fylke = "Oslo" COUNT hus', options);
       expect(sql).toContain("fylke = 'Oslo'");
     });
   });
 
   describe('boolean expressions', () => {
     it('generates AND expression', () => {
-      const sql = compile('HAS fiber AND speed >= 100 COUNT homes', options);
+      const sql = compile('HAS fiber AND nedhast >= 100 COUNT hus', options);
 
       expect(sql).toContain("tek = 'fiber'");
-      expect(sql).toContain('ned >= 100000');
+      expect(sql).toContain('ned_mbps >= 100');
       expect(sql).toContain('AND');
     });
 
     it('generates OR expression', () => {
-      const sql = compile('HAS fiber OR cable COUNT homes', options);
+      const sql = compile('HAS fiber OR kabel COUNT hus', options);
 
       expect(sql).toContain("tek = 'fiber'");
       expect(sql).toContain("tek = 'cable'");
@@ -119,28 +146,28 @@ describe('SQL Generator', () => {
     });
 
     it('generates NOT expression', () => {
-      const sql = compile('HAS NOT dsl COUNT homes', options);
+      const sql = compile('HAS NOT dsl COUNT hus', options);
       expect(sql).toContain("NOT (tek = 'dsl')");
     });
 
     it('generates nested expression', () => {
-      const sql = compile('HAS (fiber OR cable) AND speed >= 100 COUNT homes', options);
+      const sql = compile('HAS (fiber OR kabel) AND nedhast >= 100 COUNT hus', options);
 
       expect(sql).toContain("(tek = 'fiber' OR tek = 'cable')");
       expect(sql).toContain('AND');
-      expect(sql).toContain('ned >= 100000');
+      expect(sql).toContain('ned_mbps >= 100');
     });
   });
 
   describe('quantifiers', () => {
     it('generates ANY as OR', () => {
-      const sql = compile('HAS ANY(fiber, cable) COUNT homes', options);
+      const sql = compile('HAS ANY(fiber, kabel) COUNT hus', options);
 
       expect(sql).toContain("tek = 'fiber' OR tek = 'cable'");
     });
 
     it('generates ALL as INTERSECT', () => {
-      const sql = compile('HAS ALL(fiber, 5g) COUNT homes', options);
+      const sql = compile('HAS ALL(fiber, 5g) COUNT hus', options);
 
       expect(sql).toContain('INTERSECT');
       expect(sql).toContain("tek = 'fiber'");
@@ -148,31 +175,31 @@ describe('SQL Generator', () => {
     });
 
     it('generates NONE as NOT IN', () => {
-      const sql = compile('HAS NONE(speed >= 30) COUNT homes', options);
+      const sql = compile('HAS NONE(nedhast >= 30) COUNT hus', options);
 
       expect(sql).toContain('NOT IN');
-      expect(sql).toContain('ned >= 30000');
+      expect(sql).toContain('ned_mbps >= 30');
     });
   });
 
   describe('output options', () => {
     it('generates count columns for SHOW count', () => {
-      const sql = compile('HAS fiber COUNT homes SHOW count', options);
+      const sql = compile('HAS fiber COUNT hus SHOW count', options);
 
       expect(sql).toContain('covered');
       expect(sql).toContain('total');
       expect(sql).not.toContain('percent');
     });
 
-    it('generates percent column for SHOW percent', () => {
-      const sql = compile('HAS fiber COUNT homes SHOW percent', options);
+    it('generates percent column for SHOW andel', () => {
+      const sql = compile('HAS fiber COUNT hus SHOW andel', options);
 
       expect(sql).toContain('percent');
       expect(sql).toContain('ROUND(100.0');
     });
 
-    it('generates all columns for SHOW both', () => {
-      const sql = compile('HAS fiber COUNT homes SHOW both', options);
+    it('generates all columns for SHOW begge', () => {
+      const sql = compile('HAS fiber COUNT hus SHOW begge', options);
 
       expect(sql).toContain('covered');
       expect(sql).toContain('total');
@@ -182,46 +209,46 @@ describe('SQL Generator', () => {
 
   describe('sorting', () => {
     it('generates ORDER BY gruppe ASC by default', () => {
-      const sql = compile('HAS fiber COUNT homes', options);
-      expect(sql).toContain('ORDER BY gruppe ASC');
+      const sql = compile('HAS fiber COUNT hus', options);
+      expect(sql).toContain('ORDER BY p.gruppe ASC');
     });
 
     it('generates ORDER BY percent DESC', () => {
-      const sql = compile('HAS fiber COUNT homes SORT percent DESC', options);
+      const sql = compile('HAS fiber COUNT hus SORT andel DESC', options);
       expect(sql).toContain('ORDER BY percent DESC');
     });
 
     it('generates ORDER BY covered', () => {
-      const sql = compile('HAS fiber COUNT homes SORT count ASC', options);
+      const sql = compile('HAS fiber COUNT hus SORT count ASC', options);
       expect(sql).toContain('ORDER BY covered ASC');
     });
   });
 
   describe('LIMIT', () => {
     it('generates LIMIT clause', () => {
-      const sql = compile('HAS fiber COUNT homes TOP 10', options);
+      const sql = compile('HAS fiber COUNT hus TOP 10', options);
       expect(sql).toContain('LIMIT 10');
     });
 
     it('omits LIMIT when no TOP', () => {
-      const sql = compile('HAS fiber COUNT homes', options);
+      const sql = compile('HAS fiber COUNT hus', options);
       expect(sql).not.toMatch(/LIMIT \d+/);
     });
   });
 
   describe('custom data path', () => {
     it('uses custom data path', () => {
-      const sql = compile('HAS fiber COUNT homes', { year: 2024, dataPath: '/custom/path' });
+      const sql = compile('HAS fiber COUNT hus', { year: 2024, dataPath: '/custom/path' });
 
-      expect(sql).toContain("'/custom/path/2024/adr.parquet'");
-      expect(sql).toContain("'/custom/path/2024/fbb.parquet'");
+      expect(sql).toContain("'/custom/path/span_adr.parquet'");
+      expect(sql).toContain("'/custom/path/span_dekning.parquet'");
     });
   });
 
   describe('full integration', () => {
     it('generates complete SQL for complex query', () => {
       const sql = compile(
-        'HAS fiber AND speed >= 100 IN urban COUNT homes BY county SHOW both SORT percent DESC TOP 5',
+        'HAS fiber AND nedhast >= 100 IN tett COUNT hus BY fylke SHOW begge SORT andel DESC TOP 5',
         options
       );
 
@@ -229,56 +256,110 @@ describe('SQL Generator', () => {
       expect(sql).toContain('WITH population AS');
       expect(sql).toContain('coverage AS');
       expect(sql).toContain("tek = 'fiber'");
-      expect(sql).toContain('ned >= 100000');
+      expect(sql).toContain('ned_mbps >= 100');
       expect(sql).toContain('ertett = true');
       expect(sql).toContain('SUM(hus)');
       expect(sql).toContain('fylke AS gruppe');
-      expect(sql).toContain('ORDER BY percent DESC');
+      // For BY fylke, ORDER BY includes CASE for national total placement
+      expect(sql).toContain('percent DESC');
       expect(sql).toContain('LIMIT 5');
     });
   });
 
   describe('FOR clause', () => {
     it('uses FOR year instead of options.year', () => {
-      const sql = compile('HAS fiber COUNT homes FOR 2023', { year: 2024 });
+      const sql = compile('HAS fiber COUNT hus FOR 2023', { year: 2024 });
 
-      expect(sql).toContain("'data/2023/adr.parquet'");
-      expect(sql).toContain("'data/2023/fbb.parquet'");
-      expect(sql).not.toContain("'data/2024/");
+      expect(sql).toContain('aar = 2023');
+      expect(sql).not.toContain('aar = 2024');
     });
 
     it('generates single year SQL for FOR with one year', () => {
-      const sql = compile('HAS fiber COUNT homes FOR 2024', {});
+      const sql = compile('HAS fiber COUNT hus FOR 2024', {});
 
-      expect(sql).toContain("'data/2024/adr.parquet'");
-      expect(sql).toContain("'data/2024/fbb.parquet'");
-      expect(sql).not.toContain('UNION ALL');
+      expect(sql).toContain("'data/span_adr.parquet'");
+      expect(sql).toContain("'data/span_dekning.parquet'");
+      expect(sql).toContain('aar = 2024');
     });
 
-    it('generates multi-year SQL with UNION ALL', () => {
-      const sql = compile('HAS fiber COUNT homes FOR (2023, 2024)', {});
+    it('generates multi-year SQL with IN clause', () => {
+      const sql = compile('HAS fiber COUNT hus FOR (2023, 2024)', {});
 
-      expect(sql).toContain('adr_union AS');
-      expect(sql).toContain('fbb_union AS');
-      expect(sql).toContain('UNION ALL');
-      expect(sql).toContain("'data/2023/adr.parquet'");
-      expect(sql).toContain("'data/2024/adr.parquet'");
-      expect(sql).toContain("'data/2023/fbb.parquet'");
-      expect(sql).toContain("'data/2024/fbb.parquet'");
-    });
-
-    it('includes aar column in multi-year SQL', () => {
-      const sql = compile('HAS fiber COUNT homes BY county FOR (2023, 2024)', {});
-
-      expect(sql).toContain('2023 AS aar');
-      expect(sql).toContain('2024 AS aar');
-      expect(sql).toContain('p.aar');
+      expect(sql).toContain('aar IN (2023, 2024)');
+      expect(sql).toContain("'data/span_adr.parquet'");
+      expect(sql).toContain("'data/span_dekning.parquet'");
     });
 
     it('falls back to options.year when no FOR clause', () => {
-      const sql = compile('HAS fiber COUNT homes', { year: 2024 });
+      const sql = compile('HAS fiber COUNT hus', { year: 2024 });
 
-      expect(sql).toContain("'data/2024/adr.parquet'");
+      expect(sql).toContain('aar = 2024');
+    });
+  });
+
+  describe('COUNT subscriptions', () => {
+    it('generates SQL for basic subscription count', () => {
+      const sql = compile('HAS fiber COUNT subscriptions FOR 2024', {});
+
+      expect(sql).toContain("'data/span_ab.parquet'");
+      expect(sql).toContain('COUNT(*)');
+      expect(sql).toContain("tek = 'fiber'");
+      expect(sql).toContain('aar = 2024');
+    });
+
+    it('generates SQL for subscription count by fylke', () => {
+      const sql = compile('HAS fiber COUNT subscriptions BY fylke FOR 2024', {});
+
+      expect(sql).toContain('fylke AS gruppe');
+      expect(sql).toContain('GROUP BY fylke');
+      expect(sql).toContain('COUNT(*)');
+    });
+
+    it('generates SQL for subscription count with speed filter', () => {
+      const sql = compile('HAS nedhast >= 100 COUNT subscriptions FOR 2024', {});
+
+      expect(sql).toContain('ned_mbps >= 100');
+      expect(sql).toContain('COUNT(*)');
+    });
+
+    it('generates SQL for private subscriptions', () => {
+      const sql = compile('HAS fiber IN private COUNT subscriptions FOR 2024', {});
+
+      expect(sql).toContain('privat = true');
+      expect(sql).toContain("tek = 'fiber'");
+    });
+
+    it('generates SQL for business subscriptions', () => {
+      const sql = compile('HAS fiber IN business COUNT subscriptions FOR 2024', {});
+
+      expect(sql).toContain('privat = false');
+    });
+
+    it('generates SQL for private subscriptions by tilb', () => {
+      const sql = compile('HAS fiber IN private COUNT subscriptions BY tilb FOR 2024', {});
+
+      expect(sql).toContain('tilb AS gruppe');
+      expect(sql).toContain('privat = true');
+    });
+
+    it('generates multi-year subscription query', () => {
+      const sql = compile('HAS fiber COUNT subscriptions FOR (2023, 2024)', {});
+
+      expect(sql).toContain('aar IN (2023, 2024)');
+      expect(sql).toContain(', aar'); // year column in SELECT
+      expect(sql).toContain('GROUP BY');
+    });
+
+    it('rejects private/business filter with non-subscription metric', () => {
+      expect(() => {
+        compile('HAS fiber IN private COUNT hus FOR 2024', {});
+      }).toThrow('Filters "private" and "business" can only be used with COUNT subscriptions');
+    });
+
+    it('rejects business filter with non-subscription metric', () => {
+      expect(() => {
+        compile('HAS fiber IN business COUNT hus FOR 2024', {});
+      }).toThrow('Filters "private" and "business" can only be used with COUNT subscriptions');
     });
   });
 });
