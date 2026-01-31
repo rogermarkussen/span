@@ -35,7 +35,7 @@ COUNT <metric>
 
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 *"Count homes that have fiber coverage"*
 
@@ -44,24 +44,24 @@ COUNT homes
 When `HAS` is omitted, the query counts all addresses without any coverage filter:
 
 ```
-COUNT homes BY county FOR 2024
+COUNT hus BY fylke FOR 2024
 ```
 *"Count all homes by county for 2024"*
 
 ```
-COUNT ab BY county FOR 2024
+COUNT ab BY fylke FOR 2024
 ```
 *"Count all subscriptions by county for 2024"*
 
 ### Full Example
 
 ```
-HAS fiber AND speed >= 100
-IN urban
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+HAS fiber AND nedhast >= 100
+IN tett
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 TOP 10
 ```
 *"Top 10 counties by percentage of urban homes with 100+ Mbps fiber"*
@@ -97,27 +97,27 @@ TOP 10
 | Field | Type | Values | Description |
 |-------|------|--------|-------------|
 | `fiber` | flag | - | Has fiber coverage |
-| `cable` | flag | - | Has cable coverage |
+| `kabel` | flag | - | Has cable coverage |
 | `dsl` | flag | - | Has DSL coverage |
 | `5g` | flag | - | Has 5G coverage |
 | `4g` | flag | - | Has 4G coverage |
-| `fwa` | flag | - | Has Fixed Wireless Access |
-| `tech` | string | Fiber, Cable, DSL, 5G, 4G, FWA | Technology type |
-| `speed` | number | Mbps | Download speed |
-| `upload` | number | Mbps | Upload speed |
-| `provider` | string | Telenor, Telia, Ice, ... | Service provider |
+| `ftb` | flag | - | Has Fixed Wireless Access |
+| `tek` | string | Fiber, Kabel, DSL, 5G, 4G, FTB | Technology type |
+| `nedhast` | number | Mbps | Download speed |
+| `opphast` | number | Mbps | Upload speed |
+| `tilb` | string | Telenor, Telia, Ice, ... | Service provider |
 
 ### Operators
 
 | Operator | Meaning | Example |
 |----------|---------|---------|
-| `=` | Equals | `tech = Fiber` |
-| `!=` | Not equals | `provider != Telenor` |
-| `>=` | Greater or equal | `speed >= 100` |
-| `<=` | Less or equal | `speed <= 30` |
-| `>` | Greater than | `speed > 50` |
-| `<` | Less than | `speed < 10` |
-| `IN` | In list | `provider IN (Telenor, Telia)` |
+| `=` | Equals | `tek = Fiber` |
+| `!=` | Not equals | `tilb != Telenor` |
+| `>=` | Greater or equal | `nedhast >= 100` |
+| `<=` | Less or equal | `nedhast <= 30` |
+| `>` | Greater than | `nedhast > 50` |
+| `<` | Less than | `nedhast < 10` |
+| `IN` | In list | `tilb IN (Telenor, Telia)` |
 
 ### Logical Operators
 
@@ -140,8 +140,8 @@ TOP 10
 Use parentheses to override precedence or group complex expressions:
 
 ```
-HAS (fiber AND speed >= 100) OR (5g AND speed >= 50)
-HAS NOT (fiber OR cable)
+HAS (fiber AND nedhast >= 100) OR (5g AND nedhast >= 50)
+HAS NOT (fiber OR kabel)
 ```
 
 ### Quantifiers
@@ -157,10 +157,10 @@ Quantifiers specify how conditions should match against addresses with multiple 
 #### Examples
 
 ```
-HAS ANY(fiber, cable)           -- Has fiber OR cable
-HAS ALL(fiber, cable)           -- Has BOTH fiber AND cable
-HAS NONE(speed >= 30)           -- No offer with speed >= 30
-HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
+HAS ANY(fiber, kabel)           -- Has fiber OR cable
+HAS ALL(fiber, kabel)           -- Has BOTH fiber AND cable
+HAS NONE(nedhast >= 30)         -- No offer with speed >= 30
+HAS ALL(tilb IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 ```
 
 **Note:** When no quantifier is specified, `ANY` is assumed (backwards compatible).
@@ -173,12 +173,12 @@ HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 
 | Field | Type | Values | Description |
 |-------|------|--------|-------------|
-| `county` | string | Oslo, Rogaland, ... | County name |
-| `municipality` | string | Bergen, Trondheim, ... | Municipality name |
-| `urban` | flag | - | Urban areas only |
-| `rural` | flag | - | Rural areas only |
+| `fylke` | string | Oslo, Rogaland, ... | County name |
+| `kom` | string | Bergen, Trondheim, ... | Municipality name |
+| `tett` | flag | - | Urban areas only |
+| `spredt` | flag | - | Rural areas only |
 | `type` | string | house, apartment, cabin | Building type |
-| `postal` | string | 0001-9999 | Postal code |
+| `postnr` | string | 0001-9999 | Postal code |
 | `privat` | flag | - | Private ab only* |
 | `bedrift` | flag | - | Business ab only* |
 
@@ -187,10 +187,10 @@ HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 ### Examples
 
 ```
-IN county = Oslo
-IN urban
+IN fylke = Oslo
+IN tett
 IN type = cabin
-IN county = Rogaland AND urban
+IN fylke = Rogaland AND tett
 IN privat                      -- Only for COUNT ab
 ```
 
@@ -200,19 +200,18 @@ IN privat                      -- Only for COUNT ab
 
 | Metric | SQL Column | Description |
 |--------|------------|-------------|
-| `homes` | antall_husstander | Number of households |
-| `addresses` | COUNT(adresse_id) | Number of addresses |
-| `buildings` | COUNT(DISTINCT bygning_id) | Number of buildings |
-| `cabins` | antall_fritidsboliger | Number of cabins/vacation homes |
-| `ab` | COUNT(*) | Number of ab |
+| `hus` | hus | Number of households |
+| `adr` | COUNT(adrid) | Number of addresses |
+| `fritid` | fritid | Number of cabins/vacation homes |
+| `ab` | COUNT(*) | Number of subscriptions |
 
 ### Subscriptions
 
-`COUNT ab` counts actual ab from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
+`COUNT ab` counts actual subscriptions from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
 
-**Note:** For ab, you can use special filters:
-- `IN privat` - Private customer ab only
-- `IN bedrift` - Business ab only
+**Note:** For subscriptions, you can use special filters:
+- `IN privat` - Private customer subscriptions only
+- `IN bedrift` - Business subscriptions only
 
 These filters are **only** available with `COUNT ab`.
 
@@ -222,13 +221,13 @@ These filters are **only** available with `COUNT ab`.
 
 | Level | Description |
 |-------|-------------|
-| `national` | Single national total (default) |
-| `county` | Per county (11 rows) |
-| `municipality` | Per municipality (~356 rows) |
-| `postal` | Per postal code |
-| `urban` | Urban vs rural (2 rows) |
-| `provider` | Per service provider |
-| `tech` | Per technology |
+| `total` | Single national total (default) |
+| `fylke` | Per county (11 rows) |
+| `kom` | Per municipality (~356 rows) |
+| `postnr` | Per postal code |
+| `tett` | Urban vs rural (2 rows) |
+| `tilb` | Per service provider |
+| `tek` | Per technology |
 
 ---
 
@@ -237,8 +236,8 @@ These filters are **only** available with `COUNT ab`.
 | Format | Description |
 |--------|-------------|
 | `count` | Only show count with coverage |
-| `percent` | Only show percentage |
-| `both` | Show count, total, and percentage (default) |
+| `andel` | Only show percentage |
+| `begge` | Show count, total, and percentage (default) |
 
 ---
 
@@ -281,12 +280,12 @@ The API returns an array with results for each query.
 
 ```
 HAS fiber
-COUNT homes
+COUNT hus
 ```
 
 **Output:**
-| homes_covered | total_homes | percent |
-|---------------|-------------|---------|
+| hus_covered | total_hus | andel |
+|-------------|-----------|-------|
 | 1,850,000 | 2,400,000 | 77.1% |
 
 ---
@@ -296,15 +295,15 @@ COUNT homes
 
 ```
 HAS fiber
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 ```
 
 **Output:**
-| county | percent |
-|--------|---------|
+| fylke | andel |
+|-------|-------|
 | Oslo | 89.2% |
 | Rogaland | 82.1% |
 | Vestland | 78.4% |
@@ -316,10 +315,10 @@ SORT percent DESC
 *"Homes in urban areas with 100+ Mbps"*
 
 ```
-HAS speed >= 100
-IN urban
-COUNT homes
-BY county
+HAS nedhast >= 100
+IN tett
+COUNT hus
+BY fylke
 ```
 
 ---
@@ -328,10 +327,9 @@ BY county
 *"What percentage of cabins have any broadband?"*
 
 ```
-HAS fiber OR cable OR dsl OR fwa
-IN type = cabin
-COUNT homes
-SHOW percent
+HAS fiber OR kabel OR dsl OR ftb
+COUNT fritid
+SHOW andel
 ```
 
 ---
@@ -341,8 +339,8 @@ SHOW percent
 
 ```
 HAS ALL(fiber, 5g)
-COUNT addresses
-BY county
+COUNT adr
+BY fylke
 ```
 
 ---
@@ -352,8 +350,8 @@ BY county
 
 ```
 HAS fiber
-COUNT homes
-BY provider
+COUNT hus
+BY tilb
 SORT count DESC
 TOP 5
 ```
@@ -364,17 +362,17 @@ TOP 5
 *"Distribution of speed tiers nationally"*
 
 ```
-HAS speed >= 1000
-COUNT homes
+HAS nedhast >= 1000
+COUNT hus
 ---
-HAS speed >= 100 AND speed < 1000
-COUNT homes
+HAS nedhast >= 100 AND nedhast < 1000
+COUNT hus
 ---
-HAS speed >= 30 AND speed < 100
-COUNT homes
+HAS nedhast >= 30 AND nedhast < 100
+COUNT hus
 ---
-HAS speed < 30
-COUNT homes
+HAS nedhast < 30
+COUNT hus
 ```
 
 ---
@@ -384,11 +382,11 @@ COUNT homes
 
 ```
 HAS 5g
-IN rural
-COUNT homes
-BY county
-SHOW percent
-SORT percent DESC
+IN spredt
+COUNT hus
+BY fylke
+SHOW andel
+SORT andel DESC
 TOP 10
 ```
 
@@ -398,9 +396,9 @@ TOP 10
 *"Addresses with coverage from both Telenor and Telia"*
 
 ```
-HAS ALL(provider IN (Telenor, Telia))
-COUNT addresses
-SHOW percent
+HAS ALL(tilb IN (Telenor, Telia))
+COUNT adr
+SHOW andel
 ```
 
 ---
@@ -409,9 +407,9 @@ SHOW percent
 *"Homes without any high-speed option"*
 
 ```
-HAS NONE(speed >= 30)
-COUNT homes
-BY county
+HAS NONE(nedhast >= 30)
+COUNT hus
+BY fylke
 SORT count DESC
 ```
 
@@ -422,8 +420,8 @@ SORT count DESC
 
 ```
 HAS fiber
-COUNT homes
-BY county
+COUNT hus
+BY fylke
 FOR 2024
 ```
 
@@ -434,8 +432,8 @@ FOR 2024
 
 ```
 HAS fiber
-COUNT homes
-BY county
+COUNT hus
+BY fylke
 FOR (2023, 2024)
 ```
 
@@ -444,26 +442,26 @@ Results include a `aar` column for year when multiple years are specified.
 ---
 
 ### Example 13: Private Fiber Subscriptions
-*"Private fiber ab by county"*
+*"Private fiber subscriptions by county"*
 
 ```
 HAS fiber
 IN privat
 COUNT ab
-BY county
+BY fylke
 FOR 2024
 ```
 
 ---
 
 ### Example 14: Business High-Speed Subscriptions
-*"Business ab with 100+ Mbps by provider"*
+*"Business subscriptions with 100+ Mbps by provider"*
 
 ```
-HAS speed >= 100
+HAS nedhast >= 100
 IN bedrift
 COUNT ab
-BY provider
+BY tilb
 SORT count DESC
 TOP 10
 FOR 2024
@@ -484,15 +482,15 @@ query       = [has_clause] [in_clause] count_clause [by_clause]
 has_clause  = "HAS" [quantifier] coverage_condition { ("AND" | "OR") coverage_condition }
 quantifier  = "ANY" | "ALL" | "NONE"
 coverage_condition = ["NOT"] ( coverage_flag | coverage_comparison | "(" coverage_condition { ("AND" | "OR") coverage_condition } ")" )
-coverage_flag = "fiber" | "cable" | "dsl" | "5g" | "4g" | "fwa"
+coverage_flag = "fiber" | "kabel" | "dsl" | "5g" | "4g" | "ftb"
 coverage_comparison = coverage_field operator value
-coverage_field = "tech" | "speed" | "upload" | "provider"
+coverage_field = "tek" | "nedhast" | "opphast" | "tilb"
 
 in_clause   = "IN" population_condition { ("AND" | "OR") population_condition }
 population_condition = ["NOT"] ( population_flag | population_comparison )
-population_flag = "urban" | "rural" | "privat" | "bedrift"
+population_flag = "tett" | "spredt" | "privat" | "bedrift"
 population_comparison = population_field operator value
-population_field = "county" | "municipality" | "type" | "postal"
+population_field = "fylke" | "kom" | "type" | "postnr"
 
 operator    = "=" | "!=" | ">=" | "<=" | ">" | "<" | "IN"
 value       = string | number | value_list
@@ -501,16 +499,16 @@ string      = word | "'" { any_char } "'"
 number      = digit { digit }
 
 count_clause = "COUNT" metric
-metric      = "homes" | "addresses" | "buildings" | "cabins" | "ab"
+metric      = "hus" | "adr" | "fritid" | "ab"
 
 by_clause   = "BY" grouping
-grouping    = "national" | "county" | "municipality" | "postal" | "urban" | "provider" | "tech"
+grouping    = "total" | "fylke" | "kom" | "postnr" | "tett" | "tilb" | "tek"
 
 show_clause = "SHOW" output
-output      = "count" | "percent" | "both"
+output      = "count" | "andel" | "begge"
 
 sort_clause = "SORT" sort_field sort_dir
-sort_field  = "count" | "percent" | "group"
+sort_field  = "count" | "andel" | "group"
 sort_dir    = "ASC" | "DESC"
 
 top_clause  = "TOP" number
@@ -526,14 +524,14 @@ for_clause  = "FOR" ( number | "(" number { "," number } ")" )
 
 ```javascript
 const TOKEN_TYPES = {
-  KEYWORD: /^(HAS|IN|COUNT|BY|SHOW|SORT|TOP|AND|OR|NOT|ANY|ALL|NONE)$/i,
-  COVERAGE_FLAG: /^(fiber|cable|dsl|5g|4g|fwa)$/i,
-  POPULATION_FLAG: /^(urban|rural|privat|bedrift)$/i,
-  COVERAGE_FIELD: /^(tech|speed|upload|provider)$/i,
-  POPULATION_FIELD: /^(county|municipality|type|postal)$/i,
-  METRIC: /^(homes|addresses|buildings|cabins|ab)$/i,
-  GROUPING: /^(national|county|municipality|postal|urban|provider|tech)$/i,
-  OUTPUT: /^(count|percent|both)$/i,
+  KEYWORD: /^(HAS|IN|COUNT|BY|SHOW|SORT|TOP|AND|OR|NOT|ANY|ALL|NONE|FOR)$/i,
+  COVERAGE_FLAG: /^(fiber|kabel|dsl|5g|4g|ftb)$/i,
+  POPULATION_FLAG: /^(tett|spredt|privat|bedrift)$/i,
+  COVERAGE_FIELD: /^(tek|nedhast|opphast|tilb)$/i,
+  POPULATION_FIELD: /^(fylke|kom|type|postnr)$/i,
+  METRIC: /^(hus|adr|fritid|ab)$/i,
+  GROUPING: /^(total|fylke|kom|postnr|tett|tilb|tek)$/i,
+  OUTPUT: /^(count|andel|begge)$/i,
   OPERATOR: /^(=|!=|>=|<=|>|<|IN)$/,
   NUMBER: /^\d+$/,
   STRING: /^'[^']*'$|^[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9]*$/
@@ -563,9 +561,9 @@ class SpanParser {
       has: this.parseHas(),
       in: null,
       count: null,
-      by: 'national',
-      show: 'both',
-      sort: { field: 'percent', dir: 'DESC' },
+      by: 'total',
+      show: 'begge',
+      sort: { field: 'andel', dir: 'DESC' },
       top: null
     };
 

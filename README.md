@@ -25,14 +25,14 @@ TOP 10
 ## Spørringsstruktur
 
 ```
-HAS <dekningsbetingelse>     -- Obligatorisk: Hva slags dekning?
-IN <populasjonsfilter>       -- Valgfri: Hvilken befolkning?
+[HAS <dekningsbetingelse>]   -- Valgfri: Hva slags dekning? (utelat for "alle")
+[IN <populasjonsfilter>]     -- Valgfri: Hvilken befolkning?
 COUNT <metrikk>              -- Obligatorisk: Hva telles?
-BY <gruppering>              -- Valgfri: Hvordan gruppere?
-SHOW <format>                -- Valgfri: Hva vises?
-SORT <felt> <retning>        -- Valgfri: Sortering
-TOP <n>                      -- Valgfri: Maks rader
-FOR <år>                     -- Valgfri: Årsfilter
+[BY <gruppering>]            -- Valgfri: Hvordan gruppere?
+[SHOW <format>]              -- Valgfri: Hva vises?
+[SORT <felt> <retning>]      -- Valgfri: Sortering
+[TOP <n>]                    -- Valgfri: Maks rader
+[FOR <år>]                   -- Valgfri: Årsfilter
 ```
 
 ## Dekningsbetingelser (HAS)
@@ -72,6 +72,10 @@ NONE(nedhast >= 30)       -- Ingen tilbud med >= 30 Mbps
 | Spredtbygd | `spredt` |
 | Bygningstype | `type = cabin` |
 | Postnummer | `postnr = 5000` |
+| Privat* | `privat` |
+| Bedrift* | `bedrift` |
+
+\* Kun tilgjengelig med `COUNT ab`
 
 ## Metrikker (COUNT)
 
@@ -80,6 +84,7 @@ NONE(nedhast >= 30)       -- Ingen tilbud med >= 30 Mbps
 | `hus` | Husstander |
 | `adr` | Adresser |
 | `fritid` | Fritidsboliger |
+| `ab` | Abonnementer |
 
 ## Gruppering (BY)
 
