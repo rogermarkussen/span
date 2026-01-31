@@ -157,6 +157,21 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* Sentrering av års-kolonner (alle unntatt første kolonne) */
+    th:not(:first-child),
+    td:not(:first-child) {
+      text-align: center;
+    }
+
+    /* Norge-rad med grønn bakgrunn */
+    tr.national-row td {
+      background: #e8f5e9;
+    }
+
+    tr.national-row:hover td {
+      background: #c8e6c9;
+    }
+
     .no-results {
       text-align: center;
       padding: 2rem;
@@ -259,6 +274,11 @@
         const tbody = document.createElement('tbody');
         for (const row of data.rows) {
           const tr = document.createElement('tr');
+          // Sjekk om dette er Norge-raden
+          const firstColValue = row[data.columns[0]];
+          if (firstColValue === 'Norge') {
+            tr.classList.add('national-row');
+          }
           for (const col of data.columns) {
             const td = document.createElement('td');
             const value = row[col];
@@ -287,10 +307,11 @@
     function formatValue(value) {
       if (value === null || value === undefined) return '';
       if (typeof value === 'number') {
-        if (Number.isInteger(value)) {
-          return value.toLocaleString('nb-NO');
-        }
-        return value.toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        // Alltid vis 1 desimal for andeler/prosenter
+        return value.toLocaleString('nb-NO', {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        });
       }
       return String(value);
     }
