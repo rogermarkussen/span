@@ -165,6 +165,10 @@ HAS ALL(provider IN (Telenor, Telia))  -- Covered by both Telenor and Telia
 | `rural` | flag | - | Rural areas only |
 | `type` | string | house, apartment, cabin | Building type |
 | `postal` | string | 0001-9999 | Postal code |
+| `private` | flag | - | Private subscriptions only* |
+| `business` | flag | - | Business subscriptions only* |
+
+\* Only available with `COUNT subscriptions`
 
 ### Examples
 
@@ -173,6 +177,7 @@ IN county = Oslo
 IN urban
 IN type = cabin
 IN county = Rogaland AND urban
+IN private                     -- Only for COUNT subscriptions
 ```
 
 ---
@@ -185,6 +190,17 @@ IN county = Rogaland AND urban
 | `addresses` | COUNT(adresse_id) | Number of addresses |
 | `buildings` | COUNT(DISTINCT bygning_id) | Number of buildings |
 | `cabins` | antall_fritidsboliger | Number of cabins/vacation homes |
+| `subscriptions` | COUNT(*) | Number of subscriptions |
+
+### Subscriptions
+
+`COUNT subscriptions` counts actual subscriptions from the subscription dataset (`span_ab.parquet`), as opposed to other metrics which count potential coverage opportunities.
+
+**Note:** For subscriptions, you can use special filters:
+- `IN private` - Private customer subscriptions only
+- `IN business` - Business subscriptions only
+
+These filters are **only** available with `COUNT subscriptions`.
 
 ---
 
@@ -413,6 +429,34 @@ Results include a `aar` column for year when multiple years are specified.
 
 ---
 
+### Example 13: Private Fiber Subscriptions
+*"Private fiber subscriptions by county"*
+
+```
+HAS fiber
+IN private
+COUNT subscriptions
+BY county
+FOR 2024
+```
+
+---
+
+### Example 14: Business High-Speed Subscriptions
+*"Business subscriptions with 100+ Mbps by provider"*
+
+```
+HAS speed >= 100
+IN business
+COUNT subscriptions
+BY provider
+SORT count DESC
+TOP 10
+FOR 2024
+```
+
+---
+
 ## Grammar Specification
 
 ### EBNF
@@ -432,7 +476,7 @@ coverage_field = "tech" | "speed" | "upload" | "provider"
 
 in_clause   = "IN" population_condition { ("AND" | "OR") population_condition }
 population_condition = ["NOT"] ( population_flag | population_comparison )
-population_flag = "urban" | "rural"
+population_flag = "urban" | "rural" | "private" | "business"
 population_comparison = population_field operator value
 population_field = "county" | "municipality" | "type" | "postal"
 
@@ -443,7 +487,7 @@ string      = word | "'" { any_char } "'"
 number      = digit { digit }
 
 count_clause = "COUNT" metric
-metric      = "homes" | "addresses" | "buildings" | "cabins"
+metric      = "homes" | "addresses" | "buildings" | "cabins" | "subscriptions"
 
 by_clause   = "BY" grouping
 grouping    = "national" | "county" | "municipality" | "postal" | "urban" | "provider" | "tech"
@@ -470,10 +514,10 @@ for_clause  = "FOR" ( number | "(" number { "," number } ")" )
 const TOKEN_TYPES = {
   KEYWORD: /^(HAS|IN|COUNT|BY|SHOW|SORT|TOP|AND|OR|NOT|ANY|ALL|NONE)$/i,
   COVERAGE_FLAG: /^(fiber|cable|dsl|5g|4g|fwa)$/i,
-  POPULATION_FLAG: /^(urban|rural)$/i,
+  POPULATION_FLAG: /^(urban|rural|private|business)$/i,
   COVERAGE_FIELD: /^(tech|speed|upload|provider)$/i,
   POPULATION_FIELD: /^(county|municipality|type|postal)$/i,
-  METRIC: /^(homes|addresses|buildings|cabins)$/i,
+  METRIC: /^(homes|addresses|buildings|cabins|subscriptions)$/i,
   GROUPING: /^(national|county|municipality|postal|urban|provider|tech)$/i,
   OUTPUT: /^(count|percent|both)$/i,
   OPERATOR: /^(=|!=|>=|<=|>|<|IN)$/,
@@ -792,7 +836,7 @@ CALC growth = (current - previous) / previous * 100
 
 **Span** provides a clean, intuitive query language for coverage data:
 
-- **7 keywords** to learn: HAS, IN, COUNT, BY, SHOW, SORT, TOP
+- **8 keywords** to learn: HAS, IN, COUNT, BY, SHOW, SORT, TOP, FOR
 - **3 quantifiers** for overlap: ANY, ALL, NONE
 - **Reads like English**: "Has fiber, count homes, by county"
 - **Handles complexity**: Overlaps, filters, groupings

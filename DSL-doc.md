@@ -167,6 +167,10 @@ Begrens hvilken befolkning du måler mot.
 | `spredt` | flagg | - | Kun spredtbygde strøk |
 | `type` | tekst | house, apartment, cabin | Bygningstype |
 | `postnr` | tekst | 0001-9999 | Postnummer |
+| `private` | flagg | - | Kun privatkundeabonnementer* |
+| `business` | flagg | - | Kun bedriftsabonnementer* |
+
+\* Kun tilgjengelig med `COUNT subscriptions`
 
 **Eksempler:**
 ```
@@ -174,6 +178,7 @@ IN fylke = Oslo
 IN tett
 IN type = cabin
 IN fylke = Rogaland AND tett
+IN private                     -- Kun for COUNT subscriptions
 ```
 
 ---
@@ -187,6 +192,24 @@ Hva du vil telle:
 | `hus` | Antall husstander |
 | `adr` | Antall adresser |
 | `fritid` | Antall fritidsboliger |
+| `subscriptions` | Antall abonnementer |
+
+### Abonnementer (subscriptions)
+
+`COUNT subscriptions` teller faktiske abonnementer fra abonnementsdatasettet (`span_ab.parquet`), i motsetning til de andre metrikkene som teller potensielle dekningsmuligheter.
+
+**Merk:** For abonnementer kan du bruke spesielle filtre:
+- `IN private` - Kun privatkundeabonnementer
+- `IN business` - Kun bedriftsabonnementer
+
+Disse filtrene er **kun** tilgjengelige for `COUNT subscriptions`.
+
+**Eksempler:**
+```
+HAS fiber COUNT subscriptions FOR 2024                    -- Alle fiberabonnementer
+HAS fiber IN private COUNT subscriptions BY fylke FOR 2024  -- Private fiberabonnementer per fylke
+HAS nedhast >= 100 IN business COUNT subscriptions FOR 2024 -- Bedriftsabonnementer med 100+ Mbps
+```
 
 ---
 
@@ -457,6 +480,37 @@ SORT count DESC
 
 ---
 
+### Eksempel 11: Fiberabonnementer per fylke
+
+*«Antall private fiberabonnementer per fylke»*
+
+```
+HAS fiber
+IN private
+COUNT subscriptions
+BY fylke
+SORT count DESC
+FOR 2024
+```
+
+---
+
+### Eksempel 12: Bedriftsabonnementer med høy hastighet
+
+*«Bedriftsabonnementer med 100+ Mbps, per leverandør»*
+
+```
+HAS nedhast >= 100
+IN business
+COUNT subscriptions
+BY tilb
+SORT count DESC
+TOP 10
+FOR 2024
+```
+
+---
+
 ## Flervalgs-spørringer
 
 Du kan kombinere flere spørringer med `---`-separatoren:
@@ -530,9 +584,10 @@ IN <populasjonsfilter>       -- Valgfri: Hvilken befolkning?
   fylke = Oslo               -- Fylkesfilter
   tett|spredt                -- Tettbygd/spredtbygd
   type = cabin               -- Bygningstype
+  private|business           -- Kun for COUNT subscriptions
 
 COUNT <metrikk>              -- Obligatorisk: Hva telles?
-  hus|adr|fritid
+  hus|adr|fritid|subscriptions
 
 BY <gruppering>              -- Valgfri: Hvordan gruppere?
   total|fylke|kom|postnr|tett|tilb|tek
